@@ -1,85 +1,108 @@
 # OpenFORMA
 
-**Open Form & Document Exchange Protocol — v1.0**
+**Open protocol for structured, verifiable, portable records. Universal.**
 
-OpenFORMA is an open protocol for exchanging structured form and document data between systems in regulated and compliance-driven industries.
+OpenFORMA defines how documents and identity records move between systems. It specifies what fields a record must contain, how those fields are typed and validated, and how the record is sealed and exchanged. It is not a file format. It is a schema standard.
 
-It defines *what fields a document must contain* and *how those fields are typed, validated, and exchanged* — not the presentation layer. It is not PDF. It is not DOCX. It is a schema standard.
+Published under Creative Commons CC-BY 4.0. Built by [Ark & Aico Labs](https://arkaicolabs.com).
 
 ---
 
 ## The problem
 
-Construction documents don't travel.
+Records do not travel.
 
-A method statement written in one system cannot be validated by another.
-A RAMS produced on one platform cannot be consumed by the site manager's system.
-An induction form on paper cannot be queried by a QR scanner at the gate.
+A method statement written in one system cannot be validated by another. A worker credential issued on one platform cannot be read by the site manager's system. An induction form on paper cannot be queried by a gate scanner.
 
 Every document is a silo. Verification is manual. Compliance gaps are invisible.
 
-OpenFORMA makes documents machine-readable, transferable, and verifiable.
+This is not a construction problem. It is a universal one.
+
+OpenFORMA makes records machine-readable, transferable, and verifiable across any industry.
 
 ---
 
-## Document classes
+## The stack
 
 ```
-FORMA-ONBOARD   — worker onboarding and registration
-FORMA-SAFETY    — RAMS, method statements, risk assessments, COSHH
-FORMA-SITE      — induction records, toolbox talks, snag lists
-FORMA-COMMERCIAL — contracts, CIS declarations, payment applications
+OpenFORMA          protocol layer — record container, integrity model, exchange rules
+FormaSchema        schema registry — naming, classification, field contracts
+EventSpec          event layer — state changes, notifications, workflow triggers
+Domain Lexicons    vocabulary per industry — stable codes for domain-specific terms
 ```
 
 ---
 
-## Published schemas
+## Schema taxonomy
 
-| Schema ID | Title | Version | Status |
-|---|---|---|---|
-| FORMA-ONBOARD-001 | Worker Registration | 1.0.0 | Published |
-| FORMA-ONBOARD-002 | Worker Induction Declaration | 1.0.0 | Published |
-| FORMA-ONBOARD-003 | Worker Professional Profile (CV) | 1.0.0 | Published |
-| FORMA-SAFETY-001 | Method Statement | 1.0.0 | Published |
-| FORMA-SAFETY-002 | Risk Assessment | 1.0.0 | Published |
-| FORMA-SAFETY-003 | COSHH Assessment | 1.0.0 | Published |
-| FORMA-SITE-001 | Site Induction Record | 1.0.0 | Published |
-| FORMA-SITE-002 | Toolbox Talk Register | 1.0.0 | Published |
-| FORMA-SITE-003 | Snag / Defect Record | 1.0.0 | Published |
-| FORMA-COMMERCIAL-001 | CIS Subcontractor Declaration | 1.0.0 | Published |
-| FORMA-COMMERCIAL-002 | Labour-Only Subcontract | 1.0.0 | Published |
-| FORMA-COMMERCIAL-003 | Payment Application | 1.0.0 | Published |
+Schemas are named by functional domain and record class.
+
+```
+{DOMAIN}-{CLASS}-{NNN}
+
+FIN    Financial
+OPS    Operational
+COM    Compliance and Safety
+HR     Human Resources
+LEG    Legal and Commercial
+LOG    Logistics
+IDN    Identity and Profile
+
+DOC    Document — signed, filed, immutable
+PRO    Profile  — living record, versioned, owner-linked
+```
+
+### Published schemas
+
+| Schema ID | Title | Status |
+|---|---|---|
+| IDN-PRO-001 | Worker Identity Profile | Published |
+| COM-DOC-001 | Risk Assessment | Published |
+| COM-DOC-002 | Method Statement | Published |
+| COM-DOC-003 | RAMS | Published |
+| COM-DOC-004 | Site Induction Record | Published |
+| COM-DOC-005 | Permit to Work | Published |
+| COM-DOC-006 | COSHH Assessment | Published |
+| FIN-DOC-001 | Invoice | Published |
+| FIN-DOC-004 | Direct Debit Instruction | Published |
+| FIN-DOC-005 | Payment Application | Published |
+| HR-DOC-001 | Employment Contract | Published |
+| HR-DOC-004 | Timesheet | Published |
+| LEG-DOC-004 | Subcontract | Published |
+| LEG-DOC-005 | Labour-Only Subcontract | Published |
+| LEG-DOC-006 | CIS Declaration | Published |
+| LOG-DOC-001 | Goods Received Note | Published |
+| LOG-DOC-002 | Waste Transfer Note | Published |
+| OPS-DOC-001 | Job Sheet | Published |
+| OPS-DOC-004 | Snag List | Published |
+| OPS-DOC-005 | Prestart Check | Published |
 
 JSON Schema files: `schemas/`
 
 ---
 
-## FORMA-ONBOARD-003 — Worker Professional Profile
+## Domain Lexicons
 
-The portable, machine-readable CV.
+Schemas reference domain-specific vocabulary via `lexicon_ref` fields. Lexicons are maintained in the [Domain Registry Index](https://github.com/arkaicosystems/domain-registry-index).
 
-Replaces the paper CV, agency registration form, and ad-hoc profile page.
-CPCX-native. Verifiable. Worker-owned.
-
-**[credi.build](https://credi.build)** is the reference implementation.
-Every worker profile on credi.build is a FORMA-ONBOARD-003 document.
+The first registered lexicon is the Construction Lexicon (DRI-0001). It provides stable codes for construction roles, plant, certifications, site types, and employment status.
 
 ---
 
 ## Transport
 
-OpenFORMA documents travel inside [OCX](https://github.com/arkaicosystems/ocx) payloads.
+OpenFORMA records travel inside [EventSpec](https://github.com/arkaicosystems/event-spec) payloads.
 
 ```json
 {
-  "ocx_version": "1.0",
+  "eventspec_version": "1.0",
   "type": "EVENT",
   "payload": {
     "event_type": "INDUCTION_COMPLETE",
-    "worker_id": "credi:swilliams",
+    "subject_id": "sub:person:uuid",
     "forma_ref": {
-      "forma_id": "FORMA-SITE-001",
-      "document_id": "induction-swilliams-2026-03-21",
+      "schema_id": "COM-DOC-004",
+      "record_id": "uuid",
       "status": "accepted"
     }
   }
@@ -88,32 +111,33 @@ OpenFORMA documents travel inside [OCX](https://github.com/arkaicosystems/ocx) p
 
 ---
 
-## Related protocols
+## Signing
 
-| Protocol | Role |
-|---|---|
-| [OCX](https://github.com/arkaicosystems/ocx) | Transport layer — OpenFORMA payloads travel on OCX |
-| [CPCX](https://github.com/arkaicosystems/cpcx) | Vocabulary — `cpcx_ref` fields reference CPCX IDs |
-| ContribLedger | Attribution — logs schema quality contributions |
+Every OpenFORMA record is sealed with OFSIG. Ed25519 primary. RSA-PSS enterprise fallback. Canonical JSON via RFC 8785 before hashing.
+
+A valid signature proves the payload has not been altered since signing. Trust is determined by issuer identity, schema compliance, and verifier policy.
+
+---
+
+## Reference implementation
+
+[credi.build](https://credi.build) is the first production implementation. Every worker profile on credi.build is an IDN-PRO-001 document.
 
 ---
 
 ## Licence
 
-OpenFORMA is published under **Creative Commons CC-BY 4.0**.
-Free to use, implement, and extend. Attribution required.
+Creative Commons CC-BY 4.0. Free to use, implement, and extend. Attribution required.
 
 ---
 
 ## Governance
 
-Protocol changes via the **FieldCore Proposal (FCP)** process.
-Proposals: open an issue in this repository.
+Protocol changes via the FieldCore Proposal (FCP) process. Raise a proposal by opening an issue in this repository.
 
 ---
 
 ## Origin
 
-Conceived: October 2024
-First published: March 2026
+Conceived October 2024. First published April 2026.
 Author: [Ark & Aico Labs](https://arkaicolabs.com)
