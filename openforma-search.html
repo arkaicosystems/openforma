@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenFORMA Search — Document Index</title>
+  <meta name="theme-color" content="#0f0e0d" />
+
+  <style>
+
+    /* ============================================================
+       OPENFORMA SEARCH
+       Local document index — no server, no database.
+       The .forma files ARE the database. This is the reader.
+
+       HOW IT WORKS:
+       1. User opens a directory (File System Access API)
+       2. Every .forma file is read and parsed
+       3. The OFSIG JSON block is extracted from each
+       4. Results are indexed in memory and rendered
+       5. Search + filter runs client-side against that index
+       6. Verify button re-runs RSASSA-PKCS1-v1_5 per file on demand
+    ============================================================ */
+
+    :root {
+      --stage:       #0f0e0d;
+      --stage-2:     #161514;
+      --accent:      #d18a1f;
+      --accent-deep: #a46812;
+      --brand:       #e8703a;
+      --green:       #22c55e;
+      --red:         #ef4444;
+      --amber:       #f59e0b;
+      --blue:        #3b82f6;
+
+      --surface:     rgba(255,255,255,0.03);
+      --surface-2:   rgba(255,255,255,0.06);
+      --line:        rgba(255,255,255,0.07);
+      --line-2:      rgba(255,255,255,0.12);
+      --ink:         rgba(255,255,255,0.88);
+      --ink-soft:    rgba(255,255,255,0.5);
+      --ink-muted:   rgba(255,255,255,0.25);
+
+      --radius:      4px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--stage);
+      background-image:
+        linear-gradient(rgba(255,255,255,0.028) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.028) 1px, transparent 1px);
+      background-size: 44px 44px;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    /* ── Sticky header ────────────────────────────────────────── */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 28px;
+      background: rgba(15,14,13,0.94);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .header-brand {
+      font-size: 0.88rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #fff;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-brand span { color: var(--accent); }
+
+    .header-tag {
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 16px;
+      border-radius: 999px;
+      font-family: inherit;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border: 1px solid;
+      transition: opacity 0.15s, transform 0.12s;
+      white-space: nowrap;
+    }
+
+    .btn:hover { opacity: 0.85; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border-color: var(--line-2);
+      color: var(--ink-soft);
+    }
+
+    .btn-ghost:hover { border-color: rgba(255,255,255,0.3); color: var(--ink); opacity: 1; }
+
+    /* ── Main layout ──────────────────────────────────────────── */
+    .main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 24px 80px;
+    }
+
+    /* ── Empty / landing state ────────────────────────────────── */
+    .landing {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      text-align: center;
+      gap: 20px;
+    }
+
+    .landing-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: rgba(209,138,31,0.1);
+      border: 1px solid rgba(209,138,31,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+    }
+
+    .landing h1 {
+      margin: 0;
+      font-size: 1.6rem;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      color: var(--ink);
+    }
+
+    .landing p {
+      margin: 0;
+      max-width: 42ch;
+      font-size: 0.88rem;
+      color: var(--ink-soft);
+      line-height: 1.6;
+    }
+
+    .landing-open-btn {
+      padding: 14px 32px;
+      font-size: 0.82rem;
+    }
+
+    .fallback-note {
+      font-size: 0.7rem;
+      color: var(--ink-muted);
+      margin-top: 4px;
+    }
+
+    /* ── Stats bar ────────────────────────────────────────────── */
+    .stats-bar {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 20px;
+      padding: 14px 18px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .stat-value {
+      font-size: 1.3rem;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      color: var(--ink);
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-muted);
+    }
+
+    .stat-divider {
+      width: 1px;
+      height: 28px;
+      background: var(--line);
+    }
+
+    .stat-value.green { color: var(--green); }
+    .stat-value.amber { color: var(--amber); }
+
+    .stats-bar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ── Search + filter bar ──────────────────────────────────── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .search-wrap {
+      position: relative;
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 11px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--ink-muted);
+      pointer-events: none;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 9px 12px 9px 34px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      font-family: inherit;
+      font-size: 0.82rem;
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .search-input::placeholder { color: var(--ink-muted); }
+
+    .search-input:focus {
+      border-color: var(--accent);
+      background: var(--surface-2);
+    }
+
+    /* Schema filter chips */
+    .filter-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink-muted);
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+
+    .chip:hover { border-color: var(--line-2); color: var(--ink-soft); }
+
+    .chip.active {
+      background: rgba(209,138,31,0.12);
+      border-color: rgba(209,138,31,0.35);
+      color: var(--accent);
+    }
+
+    /* ── Sort controls ────────────────────────────────────────── */
+    .sort-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sort-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--ink-muted);
+      white-space: nowrap;
+    }
+
+    .sort-select {
+      padding: 6px 10px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      font-family: inherit;
+      font-size: 0.72rem;
+      color: var(--ink-soft);
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* ── Document table ───────────────────────────────────────── */
+    .doc-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    .doc-table thead tr {
+      border-bottom: 1px solid var(--line-2);
+    }
+
+    .doc-table th {
+      padding: 8px 12px;
+      font-size: 0.62rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-muted);
+      text-align: left;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .doc-table th:hover { color: var(--ink-soft); }
+    .doc-table th.sorted { color: var(--accent); }
+
+    .doc-table tbody tr {
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+
+    .doc-table tbody tr:hover { background: var(--surface); }
+    .doc-table tbody tr.expanded { background: var(--surface-2); }
+
+    .doc-table td {
+      padding: 11px 12px;
+      vertical-align: middle;
+    }
+
+    .td-schema {
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    .td-name {
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .td-name .filename {
+      font-size: 0.68rem;
+      color: var(--ink-muted);
+      font-weight: 500;
+      margin-top: 2px;
+    }
+
+    .td-date {
+      font-size: 0.75rem;
+      color: var(--ink-soft);
+      white-space: nowrap;
+    }
+
+    .td-fingerprint {
+      font-family: "Courier New", monospace;
+      font-size: 0.7rem;
+      color: var(--ink-muted);
+    }
+
+    /* Status badge */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 0.62rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .status-badge.signed {
+      background: rgba(34,197,94,0.12);
+      border: 1px solid rgba(34,197,94,0.25);
+      color: var(--green);
+    }
+
+    .status-badge.unsigned {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--line);
+      color: var(--ink-muted);
+    }
+
+    .status-badge.failed {
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.25);
+      color: var(--red);
+    }
+
+    .status-badge.verified {
+      background: rgba(34,197,94,0.18);
+      border: 1px solid rgba(34,197,94,0.4);
+      color: var(--green);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* Row actions */
+    .td-actions {
+      white-space: nowrap;
+    }
+
+    .row-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-family: inherit;
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink-muted);
+      transition: all 0.12s;
+      margin-left: 4px;
+    }
+
+    .row-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .row-btn.verify-btn:hover {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    /* ── Expanded detail panel ────────────────────────────────── */
+    .detail-row { display: none; }
+    .detail-row.show { display: table-row; }
+
+    .detail-row td {
+      padding: 0;
+      border-bottom: 2px solid var(--accent);
+    }
+
+    .detail-inner {
+      padding: 16px 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      background: rgba(209,138,31,0.03);
+    }
+
+    .detail-section { display: grid; gap: 8px; }
+
+    .detail-section-title {
+      font-size: 0.62rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(209,138,31,0.2);
+    }
+
+    .detail-field { display: grid; gap: 2px; }
+
+    .detail-label {
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--ink-muted);
+    }
+
+    .detail-value {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .detail-value.mono {
+      font-family: "Courier New", monospace;
+      font-size: 0.7rem;
+      color: var(--ink-soft);
+      word-break: break-all;
+    }
+
+    .detail-actions {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 8px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+    }
+
+    /* Verify result inline */
+    .verify-inline {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: var(--radius);
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .verify-inline.show { display: flex; }
+    .verify-inline.valid   { background: rgba(34,197,94,0.1); color: var(--green); }
+    .verify-inline.invalid { background: rgba(239,68,68,0.1); color: var(--red); }
+
+    /* ── Empty results ────────────────────────────────────────── */
+    .empty-results {
+      text-align: center;
+      padding: 48px 20px;
+      color: var(--ink-muted);
+      font-size: 0.82rem;
+    }
+
+    /* ── Loading state ────────────────────────────────────────── */
+    .loading {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--ink-soft);
+    }
+
+    .loading-spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--line);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Toast ────────────────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(10px);
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 8px 18px;
+      border-radius: 999px;
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── No API fallback ──────────────────────────────────────── */
+    .fallback-input { display: none; }
+
+    /* ── Responsive ───────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .main { padding: 20px 14px 60px; }
+      .doc-table th:nth-child(4),
+      .doc-table td:nth-child(4),
+      .doc-table th:nth-child(5),
+      .doc-table td:nth-child(5) { display: none; }
+      .detail-inner { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 480px) {
+      .stats-bar { gap: 14px; flex-wrap: wrap; }
+      .detail-inner { grid-template-columns: 1fr; }
+      .doc-table th:nth-child(3),
+      .doc-table td:nth-child(3) { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- ── Sticky header ─────────────────────────────────────── -->
+  <header class="header">
+    <a class="header-brand" href="#">
+      Open<span>FORMA</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" opacity="0.4">
+        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+      </svg>
+    </a>
+    <span class="header-tag">Document Search · Local Index</span>
+    <div class="header-actions">
+      <button class="btn btn-ghost" id="btn-reload" style="display:none"
+              onclick="reloadDirectory()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5">
+          <path d="M23 4v6h-6M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+        </svg>
+        Refresh
+      </button>
+      <button class="btn btn-primary" id="btn-open" onclick="openDirectory()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5">
+          <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+        </svg>
+        Open Directory
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Main ──────────────────────────────────────────────── -->
+  <main class="main" id="main">
+
+    <!-- Landing state — shown before directory is opened -->
+    <div class="landing" id="landing">
+      <div class="landing-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="1.5">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+      </div>
+      <h1>OpenFORMA Search</h1>
+      <p>
+        Open a directory of <code style="color:var(--accent);font-size:0.82rem;">.forma</code> files.
+        Every document is parsed, indexed, and made searchable — instantly.
+        No server. No database. The files are the database.
+      </p>
+      <button class="btn btn-primary landing-open-btn" onclick="openDirectory()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5">
+          <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+        </svg>
+        Open Directory
+      </button>
+      <p class="fallback-note">
+        No File System Access API?
+        <label style="color:var(--accent);cursor:pointer;text-decoration:underline;">
+          Select files manually
+          <input type="file" accept=".forma,.html" multiple class="fallback-input"
+                 id="fallback-input" onchange="handleFallbackFiles(event)" />
+        </label>
+      </p>
+    </div>
+
+    <!-- Loading state -->
+    <div class="loading" id="loading" style="display:none">
+      <div class="loading-spinner"></div>
+      <div class="loading-text" id="loading-text">Reading directory…</div>
+    </div>
+
+    <!-- Results state -->
+    <div id="results" style="display:none">
+
+      <!-- Stats bar -->
+      <div class="stats-bar" id="stats-bar">
+        <div class="stat">
+          <div class="stat-value" id="stat-total">0</div>
+          <div class="stat-label">Documents</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <div class="stat-value" id="stat-schemas">0</div>
+          <div class="stat-label">Schemas</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <div class="stat-value green" id="stat-signed">0</div>
+          <div class="stat-label">Signed</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <div class="stat-value amber" id="stat-unsigned">0</div>
+          <div class="stat-label">Unsigned</div>
+        </div>
+        <div class="stats-bar-right">
+          <div class="stat" style="text-align:right">
+            <div class="stat-value" id="stat-dir" style="font-size:0.75rem;color:var(--ink-soft)">—</div>
+            <div class="stat-label">Directory</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="search-wrap">
+          <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="search" class="search-input" id="search-input"
+                 placeholder="Search by name, company, schema, fingerprint…"
+                 oninput="handleSearch()" />
+        </div>
+        <div class="filter-chips" id="schema-filters">
+          <!-- Populated dynamically -->
+        </div>
+        <div class="sort-wrap">
+          <span class="sort-label">Sort</span>
+          <select class="sort-select" id="sort-select" onchange="renderTable()">
+            <option value="date-desc">Newest first</option>
+            <option value="date-asc">Oldest first</option>
+            <option value="schema">Schema</option>
+            <option value="name">Name</option>
+            <option value="status">Status</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <table class="doc-table" id="doc-table">
+        <thead>
+          <tr>
+            <th onclick="sortBy('schema')" id="th-schema">Schema</th>
+            <th onclick="sortBy('name')" id="th-name">Name / File</th>
+            <th onclick="sortBy('date')" id="th-date" class="sorted">Issued</th>
+            <th>Fingerprint</th>
+            <th onclick="sortBy('status')" id="th-status">Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="doc-tbody">
+          <!-- Populated by renderTable() -->
+        </tbody>
+      </table>
+
+      <div class="empty-results" id="empty-results" style="display:none">
+        No documents match your search.
+      </div>
+
+    </div>
+
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+
+    // ============================================================
+    // STATE
+    // ============================================================
+
+    var state = {
+      docs:          [],   // all parsed documents
+      filtered:      [],   // after search + filter
+      activeSchema:  'all',
+      sortKey:       'date-desc',
+      dirHandle:     null,
+      dirName:       '—',
+      expandedRow:   null  // currently expanded row index
+    };
+
+    // ============================================================
+    // DIRECTORY OPEN — File System Access API
+    // Falls back to multi-file input if API not available.
+    // ============================================================
+
+    async function openDirectory() {
+      if (!('showDirectoryPicker' in window)) {
+        document.getElementById('fallback-input').click();
+        return;
+      }
+      try {
+        var handle = await window.showDirectoryPicker({ mode: 'read' });
+        state.dirHandle = handle;
+        state.dirName   = handle.name;
+        await scanDirectory(handle);
+      } catch (e) {
+        // User cancelled — do nothing
+        if (e.name !== 'AbortError') showToast('Could not open directory');
+      }
+    }
+
+    async function reloadDirectory() {
+      if (state.dirHandle) await scanDirectory(state.dirHandle);
+    }
+
+    // ── Scan a directory handle for .forma files ──────────────
+    async function scanDirectory(dirHandle) {
+
+      showLoading('Scanning directory…');
+      state.docs = [];
+
+      var count = 0;
+
+      // Recursively walk the directory
+      await walkDir(dirHandle, async function(fileHandle, path) {
+        var name = fileHandle.name;
+        if (!name.endsWith('.forma') && !name.endsWith('.html')) return;
+
+        count++;
+        setLoadingText('Reading ' + count + ' file' + (count > 1 ? 's' : '') + '…');
+
+        try {
+          var file    = await fileHandle.getFile();
+          var content = await file.text();
+          var doc     = parseForma(content, name, path);
+          if (doc) state.docs.push(doc);
+        } catch (e) {
+          // Skip unreadable files silently
+        }
+      });
+
+      if (state.docs.length === 0) {
+        showLoading('No .forma files found in this directory.');
+        setTimeout(function() {
+          hideLoading();
+          showLanding();
+        }, 2000);
+        return;
+      }
+
+      showToast(state.docs.length + ' document' + (state.docs.length > 1 ? 's' : '') + ' indexed');
+      applyFilters();
+      showResults();
+    }
+
+    // ── Recursive directory walker ────────────────────────────
+    async function walkDir(dirHandle, callback, path) {
+      path = path || '';
+      for await (var entry of dirHandle.values()) {
+        if (entry.kind === 'file') {
+          await callback(entry, path + '/' + entry.name);
+        } else if (entry.kind === 'directory') {
+          await walkDir(entry, callback, path + '/' + entry.name);
+        }
+      }
+    }
+
+    // ── Fallback: multi-file input ────────────────────────────
+    async function handleFallbackFiles(event) {
+      var files = Array.from(event.target.files);
+      if (!files.length) return;
+
+      showLoading('Reading ' + files.length + ' file' + (files.length > 1 ? 's' : '') + '…');
+      state.docs    = [];
+      state.dirName = 'Selected files';
+
+      for (var i = 0; i < files.length; i++) {
+        try {
+          var content = await files[i].text();
+          var doc = parseForma(content, files[i].name, '/' + files[i].name);
+          if (doc) state.docs.push(doc);
+        } catch (e) { /* skip */ }
+      }
+
+      if (state.docs.length === 0) {
+        showToast('No OpenFORMA documents found');
+        hideLoading();
+        showLanding();
+        return;
+      }
+
+      applyFilters();
+      showResults();
+    }
+
+    // ============================================================
+    // PARSER — extract OpenFORMA data from a .forma file
+    // ============================================================
+
+    function parseForma(content, filename, path) {
+
+      var doc = {
+        filename:    filename,
+        path:        path || filename,
+        schema:      '—',
+        name:        '—',
+        company:     '—',
+        issued:      null,
+        issuedStr:   '—',
+        fingerprint: '—',
+        status:      'UNSIGNED',
+        hash:        '—',
+        algorithm:   '—',
+        issuer:      '—',
+        rawData:     null,
+        rawOfsig:    null,
+        content:     content,
+        verifyState: null  // null | 'verifying' | 'valid' | 'invalid'
+      };
+
+      // ── Try extracting from <script type="application/openforma+json"> ──
+      var scriptMatch = content.match(
+        /<script[^>]*type="application\/openforma\+json"[^>]*>([\s\S]*?)<\/script>/
+      );
+
+      if (scriptMatch) {
+        try {
+          var envelope = JSON.parse(scriptMatch[1].trim());
+          var data     = envelope.data || {};
+          var ofsig    = envelope.ofsig || {};
+
+          doc.schema      = data.schema      || ofsig.schema      || '—';
+          doc.company     = data.company_name || data.project_name ||
+                            data.worker_name  || data.name         || '—';
+          doc.name        = doc.company;
+          doc.issued      = ofsig.issued ? new Date(ofsig.issued) : null;
+          doc.issuedStr   = ofsig.issued ? formatDate(new Date(ofsig.issued)) : '—';
+          doc.fingerprint = ofsig.fingerprint || '—';
+          doc.status      = ofsig.status      || 'UNSIGNED';
+          doc.hash        = ofsig.hash        || '—';
+          doc.algorithm   = ofsig.algorithm   || '—';
+          doc.issuer      = ofsig.issuer      || '—';
+          doc.rawData     = data;
+          doc.rawOfsig    = ofsig;
+          doc.fullEnvelope = envelope;
+          return doc;
+        } catch (e) { /* fall through to meta */ }
+      }
+
+      // ── Fallback: try <meta> tags ──────────────────────────
+      var mSchema = content.match(/name="openforma-schema"\s+content="([^"]+)"/);
+      var mFp     = content.match(/name="openforma-fingerprint"\s+content="([^"]+)"/);
+      var mIssued = content.match(/name="openforma-issued"\s+content="([^"]+)"/);
+      var mStatus = content.match(/name="openforma-status"\s+content="([^"]+)"/);
+
+      if (mSchema || mFp) {
+        doc.schema      = mSchema ? mSchema[1] : '—';
+        doc.fingerprint = mFp     ? mFp[1]     : '—';
+        doc.status      = mStatus ? mStatus[1] : 'UNSIGNED';
+        if (mIssued) {
+          doc.issued    = new Date(mIssued[1]);
+          doc.issuedStr = formatDate(doc.issued);
+        }
+        // Try to get company from title
+        var titleMatch = content.match(/<title>([^<]+)<\/title>/);
+        if (titleMatch) doc.name = titleMatch[1];
+        return doc;
+      }
+
+      return null; // not a .forma file — skip
+    }
+
+    // ============================================================
+    // SEARCH + FILTER + SORT
+    // ============================================================
+
+    function handleSearch() {
+      state.expandedRow = null;
+      applyFilters();
+    }
+
+    function applyFilters() {
+      var q = (document.getElementById('search-input').value || '').toLowerCase().trim();
+
+      state.filtered = state.docs.filter(function(doc) {
+        // Schema filter
+        if (state.activeSchema !== 'all' && doc.schema !== state.activeSchema) return false;
+
+        // Text search across key fields
+        if (q) {
+          var haystack = [
+            doc.schema, doc.name, doc.company, doc.filename,
+            doc.fingerprint, doc.issuedStr, doc.status, doc.issuer
+          ].join(' ').toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
+
+        return true;
+      });
+
+      sortFiltered();
+      renderTable();
+      updateStats();
+    }
+
+    function sortFiltered() {
+      var key = document.getElementById('sort-select').value;
+      state.filtered.sort(function(a, b) {
+        switch (key) {
+          case 'date-desc': return (b.issued || 0) - (a.issued || 0);
+          case 'date-asc':  return (a.issued || 0) - (b.issued || 0);
+          case 'schema':    return a.schema.localeCompare(b.schema);
+          case 'name':      return a.name.localeCompare(b.name);
+          case 'status':    return a.status.localeCompare(b.status);
+          default: return 0;
+        }
+      });
+    }
+
+    function sortBy(key) {
+      var sel = document.getElementById('sort-select');
+      if (key === 'date') {
+        sel.value = sel.value === 'date-desc' ? 'date-asc' : 'date-desc';
+      } else {
+        sel.value = key;
+      }
+      sortFiltered();
+      renderTable();
+    }
+
+    // ============================================================
+    // RENDER
+    // ============================================================
+
+    function renderTable() {
+
+      var tbody = document.getElementById('doc-tbody');
+      tbody.innerHTML = '';
+
+      if (state.filtered.length === 0) {
+        document.getElementById('empty-results').style.display = 'block';
+        return;
+      }
+
+      document.getElementById('empty-results').style.display = 'none';
+
+      state.filtered.forEach(function(doc, i) {
+
+        var statusClass = doc.status === 'SIGNED'   ? 'signed'
+                        : doc.status === 'VERIFIED' ? 'verified'
+                        : doc.status === 'FAILED'   ? 'failed'
+                        : 'unsigned';
+
+        var statusLabel = doc.status || 'UNSIGNED';
+
+        // ── Main row ──────────────────────────────────────────
+        var tr = document.createElement('tr');
+        tr.id = 'row-' + i;
+        if (state.expandedRow === i) tr.classList.add('expanded');
+
+        tr.innerHTML =
+          '<td class="td-schema">' + esc(doc.schema) + '</td>' +
+          '<td class="td-name">' +
+            '<div>' + esc(doc.name !== '—' ? doc.name : doc.filename) + '</div>' +
+            '<div class="filename">' + esc(doc.filename) + '</div>' +
+          '</td>' +
+          '<td class="td-date">' + esc(doc.issuedStr) + '</td>' +
+          '<td class="td-fingerprint">' +
+            (doc.fingerprint !== '—'
+              ? doc.fingerprint.replace('OFSIG-', '<span style="opacity:0.4">OFSIG-</span>')
+              : '<span style="opacity:0.3">—</span>') +
+          '</td>' +
+          '<td>' +
+            '<span class="status-badge ' + statusClass + '">' +
+              '<span class="status-dot"></span>' +
+              statusLabel +
+            '</span>' +
+          '</td>' +
+          '<td class="td-actions">' +
+            '<button class="row-btn" onclick="event.stopPropagation();openForma(' + i + ')" title="Open document">Open</button>' +
+            (doc.rawOfsig && doc.rawOfsig.signature
+              ? '<button class="row-btn verify-btn" onclick="event.stopPropagation();verifyDoc(' + i + ')" title="Verify OFSIG signature">Verify</button>'
+              : '') +
+          '</td>';
+
+        tr.addEventListener('click', function() { toggleDetail(i); });
+        tbody.appendChild(tr);
+
+        // ── Detail row ────────────────────────────────────────
+        var dr = document.createElement('tr');
+        dr.className = 'detail-row' + (state.expandedRow === i ? ' show' : '');
+        dr.id = 'detail-' + i;
+
+        var verifyId = 'verify-inline-' + i;
+
+        var detailHTML = '<td colspan="6"><div class="detail-inner">';
+
+        // Column 1 — Document info
+        detailHTML += '<div class="detail-section">';
+        detailHTML += '<div class="detail-section-title">Document</div>';
+        detailHTML += field('Schema',   doc.schema);
+        detailHTML += field('File',     doc.filename);
+        detailHTML += field('Issued',   doc.issuedStr);
+        detailHTML += field('Status',   doc.status);
+        if (doc.issuer !== '—') detailHTML += field('Issuer', doc.issuer);
+        detailHTML += '</div>';
+
+        // Column 2 — Data fields (top 4)
+        if (doc.rawData) {
+          var dataKeys = Object.keys(doc.rawData).filter(function(k) {
+            return k !== 'schema' && k !== 'version';
+          }).slice(0, 5);
+          detailHTML += '<div class="detail-section">';
+          detailHTML += '<div class="detail-section-title">Form Data</div>';
+          dataKeys.forEach(function(k) {
+            var v = doc.rawData[k];
+            if (v && typeof v !== 'object') {
+              detailHTML += field(k.replace(/_/g,' '), String(v));
+            }
+          });
+          detailHTML += '</div>';
+        } else {
+          detailHTML += '<div class="detail-section"></div>';
+        }
+
+        // Column 3 — OFSIG
+        detailHTML += '<div class="detail-section">';
+        detailHTML += '<div class="detail-section-title">OFSIG</div>';
+        detailHTML += field('Fingerprint', doc.fingerprint);
+        detailHTML += field('Algorithm',   doc.algorithm);
+        if (doc.hash !== '—') {
+          detailHTML += '<div class="detail-field">';
+          detailHTML += '<div class="detail-label">Hash (SHA-256)</div>';
+          detailHTML += '<div class="detail-value mono">' + esc(doc.hash) + '</div>';
+          detailHTML += '</div>';
+        }
+        detailHTML += '</div>';
+
+        // Full-width action row
+        detailHTML += '<div class="detail-actions">';
+        detailHTML += '<button class="btn btn-ghost" style="font-size:0.68rem;padding:7px 14px" onclick="openForma(' + i + ')">';
+        detailHTML += '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+        detailHTML += 'Open .forma</button>';
+
+        if (doc.rawOfsig && doc.rawOfsig.signature) {
+          detailHTML += '<button class="btn btn-ghost" style="font-size:0.68rem;padding:7px 14px;border-color:rgba(34,197,94,0.3);color:rgba(34,197,94,0.7)" onclick="verifyDoc(' + i + ')">';
+          detailHTML += '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
+          detailHTML += 'Verify Signature</button>';
+        }
+
+        detailHTML += '<div class="verify-inline" id="' + verifyId + '"></div>';
+        detailHTML += '</div>';
+
+        detailHTML += '</div></td>';
+        dr.innerHTML = detailHTML;
+        tbody.appendChild(dr);
+      });
+    }
+
+    function field(label, value) {
+      return '<div class="detail-field">' +
+        '<div class="detail-label">' + esc(label) + '</div>' +
+        '<div class="detail-value">' + esc(value) + '</div>' +
+        '</div>';
+    }
+
+    function toggleDetail(i) {
+      state.expandedRow = state.expandedRow === i ? null : i;
+      renderTable();
+
+      // Scroll detail into view
+      if (state.expandedRow !== null) {
+        setTimeout(function() {
+          var el = document.getElementById('detail-' + i);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 60);
+      }
+    }
+
+    function openForma(i) {
+      var doc = state.filtered[i];
+      if (!doc || !doc.content) { showToast('File content not available'); return; }
+      var blob = new Blob([doc.content], { type: 'text/html;charset=utf-8' });
+      var url  = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    }
+
+    // ============================================================
+    // OFSIG VERIFICATION — runs on demand per document
+    // ============================================================
+
+    async function verifyDoc(i) {
+      var doc     = state.filtered[i];
+      var resultEl = document.getElementById('verify-inline-' + i);
+      if (!resultEl) return;
+      if (!doc.rawOfsig || !doc.rawOfsig.signature || !doc.rawOfsig.public_key) {
+        showInlineVerify(resultEl, false, 'No OFSIG signature block found');
+        return;
+      }
+
+      showInlineVerify(resultEl, null, 'Verifying…');
+
+      try {
+        var encoder    = new TextEncoder();
+        var dataString = JSON.stringify(doc.rawData, null, 2);
+        var dataBuffer = encoder.encode(dataString);
+
+        // Re-hash
+        var hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+        var hashArray  = Array.from(new Uint8Array(hashBuffer));
+        var reHash     = hashArray.map(function(b) {
+          return b.toString(16).padStart(2, '0');
+        }).join('');
+        var hashMatch  = reHash === doc.rawOfsig.hash;
+
+        // Import public key
+        var pkBuffer = Uint8Array.from(atob(doc.rawOfsig.public_key), function(c) {
+          return c.charCodeAt(0);
+        });
+        var publicKey = await crypto.subtle.importKey(
+          'spki',
+          pkBuffer,
+          { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+          false,
+          ['verify']
+        );
+
+        // Verify signature
+        var sigBuffer = Uint8Array.from(atob(doc.rawOfsig.signature), function(c) {
+          return c.charCodeAt(0);
+        });
+        var sigValid  = await crypto.subtle.verify(
+          'RSASSA-PKCS1-v1_5', publicKey, sigBuffer, dataBuffer
+        );
+
+        var allValid = hashMatch && sigValid;
+
+        // Update doc status
+        doc.verifyState = allValid ? 'valid' : 'invalid';
+        if (allValid) doc.status = 'VERIFIED';
+
+        showInlineVerify(
+          resultEl,
+          allValid,
+          allValid
+            ? '✓ Valid — hash + signature match'
+            : '✗ Failed — hash: ' + (hashMatch ? 'OK' : 'MISMATCH') +
+              ' · sig: ' + (sigValid ? 'OK' : 'INVALID')
+        );
+
+        // Re-render to update status badge
+        renderTable();
+
+      } catch (e) {
+        showInlineVerify(resultEl, false, 'Verify error: ' + e.message);
+      }
+    }
+
+    function showInlineVerify(el, valid, msg) {
+      el.className = 'verify-inline show ' +
+        (valid === true ? 'valid' : valid === false ? 'invalid' : '');
+      el.textContent = msg;
+    }
+
+    // ============================================================
+    // STATS + SCHEMA FILTERS
+    // ============================================================
+
+    function updateStats() {
+      var total    = state.docs.length;
+      var signed   = state.docs.filter(function(d) {
+        return d.status === 'SIGNED' || d.status === 'VERIFIED';
+      }).length;
+      var unsigned = total - signed;
+      var schemas  = [...new Set(state.docs.map(function(d) { return d.schema; })
+        .filter(function(s) { return s !== '—'; }))];
+
+      document.getElementById('stat-total').textContent    = total;
+      document.getElementById('stat-schemas').textContent  = schemas.length;
+      document.getElementById('stat-signed').textContent   = signed;
+      document.getElementById('stat-unsigned').textContent = unsigned;
+      document.getElementById('stat-dir').textContent      = state.dirName;
+
+      // Rebuild schema filter chips
+      var filtersEl = document.getElementById('schema-filters');
+      filtersEl.innerHTML = '';
+
+      var all = makeChip('All', 'all');
+      filtersEl.appendChild(all);
+
+      schemas.forEach(function(schema) {
+        filtersEl.appendChild(makeChip(schema, schema));
+      });
+    }
+
+    function makeChip(label, value) {
+      var btn = document.createElement('button');
+      btn.className = 'chip' + (state.activeSchema === value ? ' active' : '');
+      btn.textContent = label;
+      btn.onclick = function() {
+        state.activeSchema = value;
+        state.expandedRow  = null;
+        applyFilters();
+      };
+      return btn;
+    }
+
+    // ============================================================
+    // UI STATE HELPERS
+    // ============================================================
+
+    function showLoading(msg) {
+      document.getElementById('landing').style.display  = 'none';
+      document.getElementById('results').style.display  = 'none';
+      document.getElementById('loading').style.display  = 'block';
+      setLoadingText(msg || 'Loading…');
+    }
+
+    function setLoadingText(msg) {
+      document.getElementById('loading-text').textContent = msg;
+    }
+
+    function hideLoading() {
+      document.getElementById('loading').style.display = 'none';
+    }
+
+    function showResults() {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('landing').style.display = 'none';
+      document.getElementById('results').style.display = 'block';
+      document.getElementById('btn-reload').style.display = 'inline-flex';
+    }
+
+    function showLanding() {
+      document.getElementById('landing').style.display = 'flex';
+      document.getElementById('results').style.display = 'none';
+    }
+
+    function showToast(msg) {
+      var t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(function() { t.classList.remove('show'); }, 2400);
+    }
+
+    // ============================================================
+    // UTILS
+    // ============================================================
+
+    function esc(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g,  '&amp;')
+        .replace(/</g,  '&lt;')
+        .replace(/>/g,  '&gt;')
+        .replace(/"/g,  '&quot;');
+    }
+
+    function formatDate(d) {
+      if (!d || isNaN(d)) return '—';
+      return d.toLocaleDateString('en-GB', {
+        day: '2-digit', month: 'short', year: 'numeric'
+      }) + ' ' + d.toLocaleTimeString('en-GB', {
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+  </script>
+
+</body>
+</html>

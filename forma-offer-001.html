@@ -1,0 +1,2219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LEG-DOC-001 — Offer to Provide Architectural Services</title>
+  <meta name="theme-color" content="#0f0e0d" />
+
+  <!--
+  ================================================================
+  LEG-DOC-001 — Offer to Provide Architectural Services
+  Schema: LEG-DOC-001 (canonical) | alias: LEG-DOC-001
+  Version: 1.0 — 2026-03-28
+  Protocol: OpenFORMA v1.0 | Chrome v1.0
+  Namespace: of://leg/offer-architectural/1.0
+
+  PURPOSE:
+  Formal offer from an architect to a client for domestic work
+  (extensions, loft conversions, renovations). Covers scope,
+  fee, programme, insurance and governing contract reference.
+  Generates a signed .forma output file on completion.
+
+  USAGE:
+  1. Fill in all required fields (marked *)
+  2. Review the complete offer
+  3. Click "Generate & Sign Offer" to create the OFSIG fingerprint
+  4. Click "Download .forma" to save the signed document
+  5. Send the .forma file to your architect for counter-signature
+
+  HOW SIGNING WORKS:
+  This form uses SHA-256 hashing (WebCrypto API — built into every
+  modern browser, no dependency needed). When you click sign:
+  - All form data is collected into a JSON object
+  - A SHA-256 hash is computed from that JSON
+  - A fingerprint is generated: OFSIG-LEG-DOC-001-{8 hex chars}
+  - The fingerprint + timestamp are embedded in the .forma output
+  - Any change to the document after download will invalidate the hash
+
+  WHAT THIS IS NOT:
+  This is not a legally binding contract on its own. It is a formal
+  offer document. The contract is formed when the architect signs
+  FORMA-ACCEPT-001 in response to this offer. The governing contract
+  (RIBA DPS or similar) provides the full legal framework.
+
+  PHASE 1A NOTE:
+  Full asymmetric key signing (Ed25519) is Phase 2. This version
+  uses SHA-256 hash fingerprinting only. The hash is sufficient for
+  tamper detection and document integrity verification.
+
+  FILES:
+  This file is the fillable form.
+  Output: forma-offer-{fingerprint}.forma (self-contained HTML)
+  ================================================================
+  -->
+
+  <style>
+
+    /* ── Design tokens — OpenFORMA palette ───────────────────── */
+    :root {
+      /* Stage */
+      --stage:          #0f0e0d;
+      --stage-grid:     rgba(255,255,255,0.03);
+
+      /* Brand */
+      --accent:         #d18a1f;   /* amber — OpenFORMA primary */
+      --accent-deep:    #a46812;   /* amber dark — rails, hover */
+      --accent-bg:      rgba(209,138,31,0.08);
+
+      /* Status */
+      --green:          #22c55e;
+      --green-bg:       rgba(34,197,94,0.10);
+      --green-border:   rgba(34,197,94,0.25);
+      --red:            #ef4444;
+      --red-bg:         rgba(239,68,68,0.08);
+
+      /* Document */
+      --page:           #ffffff;
+      --ink:            #111315;
+      --ink-soft:       #374151;
+      --muted:          #6b7280;
+      --line:           #e5e7eb;
+      --panel:          #f9fafb;
+      --panel-2:        #f3f4f6;
+
+      /* Form */
+      --input-bg:       #f9fafb;
+      --input-border:   #d1d5db;
+      --input-focus:    #d18a1f;
+      --input-radius:   4px;
+      --required-red:   #dc2626;
+
+      /* Geometry */
+      --radius:         4px;
+      --shadow:         0 24px 64px rgba(0,0,0,0.5);
+    }
+
+    /* ── Reset ────────────────────────────────────────────────── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Stage — dark background with grid ───────────────────── */
+    html, body {
+      background: var(--stage);
+      background-image:
+        linear-gradient(var(--stage-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--stage-grid) 1px, transparent 1px);
+      background-size: 44px 44px;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    body { padding: 0 20px 80px; }
+
+    /* ── Sticky header ────────────────────────────────────────── */
+    .stage-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 24px;
+      margin: 0 -20px 28px;
+      background: rgba(15,14,13,0.93);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .stage-brand {
+      font-size: 0.9rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #fff;
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+    .stage-brand span { color: var(--accent); }
+
+    .stage-doc-id {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.35);
+      flex: 1;
+      text-align: center;
+    }
+
+    .stage-ofsig-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      flex-shrink: 0;
+    }
+
+    .stage-ofsig-badge.unsigned {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.35);
+    }
+
+    .stage-ofsig-badge.signed {
+      background: rgba(34,197,94,0.12);
+      border: 1px solid rgba(34,197,94,0.25);
+      color: var(--green);
+    }
+
+    /* ── Stage layout: document + sidebar ────────────────────── */
+    .stage-layout {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    /* ── Sidebar ──────────────────────────────────────────────── */
+    .stage-sidebar {
+      position: sticky;
+      top: 72px;
+      width: 52px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      order: 2;
+    }
+
+    .sidebar-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      color: rgba(255,255,255,0.4);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      font-family: inherit;
+    }
+
+    .sidebar-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-bg);
+    }
+
+    .sidebar-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .sidebar-btn.signed-state {
+      border-color: var(--green);
+      color: var(--green);
+      background: var(--green-bg);
+    }
+
+    .sidebar-btn span {
+      font-size: 7px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .sidebar-divider {
+      width: 28px;
+      height: 1px;
+      background: rgba(255,255,255,0.08);
+      margin: 2px 0;
+    }
+
+    .sidebar-status {
+      font-size: 6.5px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.2);
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    /* ── Document page — white card with amber rail ───────────── */
+    .page {
+      flex: 1;
+      order: 1;
+      max-width: 794px;
+      background: var(--page);
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Amber left rail — OpenFORMA identity marker */
+    .page::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 5px;
+      background: linear-gradient(180deg, var(--accent) 0%, var(--accent-deep) 100%);
+      z-index: 2;
+    }
+
+    /* ── Document header ──────────────────────────────────────── */
+    .doc-header {
+      background: linear-gradient(135deg, #1a1d22 0%, #22272e 100%);
+      color: #f8f8f4;
+      padding: 20px 28px 18px 32px;
+      border-bottom: 3px solid var(--accent);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .doc-title {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .doc-name {
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      margin: 0 0 4px;
+      line-height: 1.1;
+    }
+
+    .doc-sub {
+      font-size: 11px;
+      color: rgba(248,248,244,0.45);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .doc-schema-badge {
+      background: rgba(209,138,31,0.15);
+      border: 1px solid rgba(209,138,31,0.3);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      text-align: right;
+    }
+
+    .schema-id {
+      font-size: 11px;
+      font-weight: 900;
+      color: var(--accent);
+      letter-spacing: 0.06em;
+      display: block;
+    }
+
+    .schema-ver {
+      font-size: 9px;
+      color: rgba(248,248,244,0.35);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* ── Form body ────────────────────────────────────────────── */
+    .form-body {
+      padding: 24px 28px 24px 32px;
+      display: grid;
+      gap: 20px;
+    }
+
+    /* ── Form sections ────────────────────────────────────────── */
+    .form-section {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .section-head {
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-num {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .section-title {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-soft);
+    }
+
+    .section-body {
+      padding: 16px 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    /* ── Form rows and fields ─────────────────────────────────── */
+    /* Two columns on wider forms, single on narrow */
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .form-row-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .form-field {
+      display: grid;
+      gap: 4px;
+    }
+
+    .form-field.full { grid-column: 1 / -1; }
+
+    .field-label {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    /* The asterisk that marks required fields */
+    .req {
+      color: var(--required-red);
+      margin-left: 2px;
+    }
+
+    .field-hint {
+      font-size: 9.5px;
+      color: var(--muted);
+      font-style: italic;
+      margin-top: 2px;
+    }
+
+    /* ── Inputs ───────────────────────────────────────────────── */
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="number"],
+    input[type="date"],
+    textarea,
+    select {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: var(--input-radius);
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--ink);
+      transition: border-color 0.15s;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--input-focus);
+      box-shadow: 0 0 0 3px rgba(209,138,31,0.12);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+      line-height: 1.5;
+    }
+
+    /* Select arrow */
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 30px;
+    }
+
+    /* ── Checkboxes ───────────────────────────────────────────── */
+    .check-group {
+      display: grid;
+      gap: 8px;
+    }
+
+    .check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .check-item:hover {
+      border-color: var(--accent);
+      background: var(--accent-bg);
+    }
+
+    .check-item input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin-top: 1px;
+      flex-shrink: 0;
+      accent-color: var(--accent);
+    }
+
+    .check-label {
+      display: grid;
+      gap: 1px;
+    }
+
+    .check-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .check-desc {
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ── Fee table ────────────────────────────────────────────── */
+    .fee-table {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .fee-table-head {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 0;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .fee-table-body {
+      display: grid;
+      gap: 0;
+    }
+
+    .fee-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .fee-row:last-child { border-bottom: none; }
+
+    .fee-cell {
+      padding: 8px 12px;
+      font-size: 11px;
+      border-right: 1px solid var(--line);
+    }
+
+    .fee-cell:last-child { border-right: none; }
+
+    .fee-cell.head {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .fee-cell input {
+      padding: 4px 6px;
+      font-size: 12px;
+    }
+
+    /* ── Info box ─────────────────────────────────────────────── */
+    .info-box {
+      background: var(--accent-bg);
+      border: 1px solid rgba(209,138,31,0.25);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .info-icon {
+      color: var(--accent);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .info-text {
+      font-size: 11px;
+      color: var(--ink-soft);
+      line-height: 1.6;
+    }
+
+    .info-text strong {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    /* ── Sign section ─────────────────────────────────────────── */
+    .sign-section {
+      background: #fffbf0;
+      border: 1px solid #f0d8a0;
+      border-radius: var(--radius);
+      padding: 20px 28px 20px 32px;
+      margin: 0 0 0 0;
+    }
+
+    .sign-title {
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--accent-deep);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sign-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+
+    /* The main action button */
+    .btn-sign {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      font-family: inherit;
+    }
+
+    .btn-sign:hover { background: var(--accent-deep); }
+    .btn-sign:active { transform: scale(0.98); }
+    .btn-sign:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Download button — shown after signing */
+    .btn-download {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      background: var(--green);
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 0.15s;
+      font-family: inherit;
+      margin-top: 12px;
+    }
+
+    .btn-download.show { display: inline-flex; }
+
+    .btn-download:hover { background: #16a34a; }
+
+    /* ── OFSIG result block — shown after signing ─────────────── */
+    .ofsig-result {
+      display: none;
+      margin-top: 16px;
+      background: #fff;
+      border: 1px solid #f0d8a0;
+      border-radius: var(--radius);
+      padding: 16px 18px;
+    }
+
+    .ofsig-result.show { display: block; }
+
+    .ofsig-result-title {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--accent-deep);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ofsig-grid { display: grid; gap: 7px; }
+
+    .ofsig-row {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      gap: 10px;
+      font-size: 9.5px;
+      align-items: start;
+    }
+
+    .ofsig-key {
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .ofsig-val {
+      font-family: "Courier New", monospace;
+      color: var(--ink);
+      word-break: break-all;
+      font-size: 9px;
+    }
+
+    .ofsig-val.fp {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--accent);
+      font-family: inherit;
+      letter-spacing: 0.04em;
+    }
+
+    .ofsig-val.ok {
+      color: var(--green);
+      font-weight: 800;
+      font-family: inherit;
+      font-size: 11px;
+    }
+
+    /* ── Page foot ────────────────────────────────────────────── */
+    .page-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px 10px 32px;
+      margin-top: 20px;
+      background: linear-gradient(135deg, #f3f4f1 0%, #eceee9 100%);
+      border-top: 1px solid var(--line);
+    }
+
+    .page-foot-meta { display: grid; gap: 2px; }
+
+    .page-foot-line {
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .page-foot-line.strong {
+      font-size: 9px;
+      color: var(--ink-soft);
+    }
+
+    /* ── Doc footer bar ───────────────────────────────────────── */
+    .doc-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 28px 10px 32px;
+      border-top: 1px solid var(--line);
+      background: var(--panel-2);
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .doc-footer-accent { color: var(--accent-deep); }
+
+    /* ── Validation state ─────────────────────────────────────── */
+    input.error, textarea.error, select.error {
+      border-color: var(--red);
+      background: var(--red-bg);
+    }
+
+    .error-msg {
+      font-size: 10px;
+      color: var(--red);
+      font-weight: 600;
+      display: none;
+    }
+
+    .error-msg.show { display: block; }
+
+    /* ── Print ────────────────────────────────────────────────── */
+    @media print {
+      html, body { background: #fff !important; padding: 0 !important; }
+      .stage-header,
+      .stage-sidebar,
+      .btn-sign,
+      .btn-download { display: none !important; }
+      .stage-layout { display: block !important; }
+      .page { box-shadow: none !important; max-width: 100% !important; }
+      body { padding: 0 !important; }
+    }
+
+    /* ── Responsive ───────────────────────────────────────────── */
+    @media (max-width: 860px) {
+      .stage-sidebar { display: none; }
+      .stage-layout  { display: block; }
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 0 10px 60px; }
+      .stage-header { margin: 0 -10px 20px; padding: 10px 14px; }
+      .form-row, .form-row-3 { grid-template-columns: 1fr; }
+      .form-field.full { grid-column: 1; }
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════════════════════
+       STICKY HEADER
+       Shows schema ID and live signing status.
+       Status badge updates from "Unsigned" to "Signed" on sign.
+  ══════════════════════════════════════════════════════════ -->
+  <div class="stage-header">
+    <a class="stage-brand" href="#">Open<span>FORMA</span></a>
+    <span class="stage-doc-id">LEG-DOC-001 · Offer to Provide Architectural Services</span>
+    <!-- JS updates this badge class and text on signing -->
+    <span class="stage-ofsig-badge unsigned" id="header-badge">
+      Unsigned
+    </span>
+  </div>
+
+  <div class="stage-layout">
+
+    <!-- ═══════════════════════════════════════════════════════
+         DOCUMENT PAGE
+    ══════════════════════════════════════════════════════════ -->
+    <div class="page">
+
+      <!-- Document header -->
+      <div class="doc-header">
+        <div>
+          <div class="doc-title">OpenFORMA · LEG-DOC-001</div>
+          <h1 class="doc-name">Offer to Provide<br>Architectural Services</h1>
+          <div class="doc-sub">Domestic Extension · UK · RIBA Plan of Work</div>
+        </div>
+        <div class="doc-schema-badge">
+          <span class="schema-id">LEG-DOC-001</span>
+          <span class="schema-ver">OpenFORMA v1.0</span>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════
+           THE FORM
+           Sections 1–9 are filled in. Section 10 is sign + generate.
+      ══════════════════════════════════════════════════════════ -->
+      <form id="offer-form" novalidate>
+      <div class="form-body">
+
+        <!-- ─────────────────────────────────────────────────────
+             SECTION 1 — OFFER DETAILS
+             Meta information about this offer document.
+        ───────────────────────────────────────────────────────── -->
+        <div class="form-section">
+          <div class="section-head">
+            <div class="section-num">1</div>
+            <div class="section-title">Offer Details</div>
+          </div>
+          <div class="section-body">
+            <div class="form-row">
+
+              <div class="form-field">
+                <label class="field-label" for="offer-date">
+                  Offer Date <span class="req">*</span>
+                </label>
+                <input type="date" id="offer-date" name="offer_date" required />
+              </div>
+
+              <div class="form-field">
+                <label class="field-label" for="offer-expiry">
+                  Offer Valid Until <span class="req">*</span>
+                </label>
+                <input type="date" id="offer-expiry" name="offer_expiry" required />
+                <div class="field-hint">How long the architect is holding this price</div>
+              </div>
+
+            </div>
+
+            <div class="info-box">
+              <svg class="info-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <div class="info-text">
+                <strong>This document is an offer, not a contract.</strong>
+                It becomes a contract when the architect signs FORMA-ACCEPT-001 in response.
+                The RIBA Domestic Professional Services Contract (selected in Section 8) provides
+                the full legal framework.
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ─────────────────────────────────────────────────────
+             SECTION 2 — THE ARCHITECT (OFFEROR)
+             The party making the offer.
+        ───────────────────────────────────────────────────────── -->
+        <div class="form-section">
+          <div class="section-head">
+            <div class="section-num">2</div>
+            <div class="section-title">The Architect — Offeror</div>
+          </div>
+          <div class="section-body">
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="field-label" for="arch-name">
+                  Full Name <span class="req">*</span>
+                </label>
+                <input type="text" id="arch-name" name="arch_name"
+                       placeholder="e.g. James Okafor" required />
+              </div>
+              <div class="form-field">
+                <label class="field-label" for="arch-company">Practice / Company</label>
+                <input type="text" id="arch-company" name="arch_company"
+                       placeholder="e.g. Okafor Architecture Ltd" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="field-label" for="arch-arb">
+                  ARB Registration Number <span class="req">*</span>
+                </label>
+                <input type="text" id="arch-arb" name="arch_arb"
+                       placeholder="e.g. 087654K" required />
+                <div class="field-hint">Verify at architects-register.org.uk</div>
+              </div>
+              <div class="form-field">
+                <label class="field-label" for="arch-riba">RIBA Membership Number</label>
+                <input type="text" id="arch-riba" name="arch_riba"
+                       placeholder="Optional" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="field-label" for="arch-email">
+                  Email <span class="req">*</span>
+                </label>
+                <input type="email" id="arch-email" name="arch_email"
+                       placeholder="architect@practice.co.uk" required />
+              </div>
+              <div class="form-field">
+                <label class="field-label" for="arch-phone">Phone</label>
+                <input type="tel" id="arch-phone" name="arch_phone"
+                       placeholder="+44 7700 000000" />
+              </div>
+            </div>
+
+            <div class="form-field">
+              <label class="field-label" for="arch-pi">
+                Professional Indemnity Insurance <span class="req">*</span>
+              </label>
+              <select id="arch-pi" name="arch_pi_confirmed" required>
+                <option value="">-- Select --</option>
+                <option value="confirmed">Confirmed — PI insurance in place</option>
+                <option value="pending">Pending — to be confirmed before appointment</option>
+                <option value="not_applicable">Not applicable</option>
+              </select>
+              <div class="field-hint">PI insurance is a requirement for all RIBA-chartered architects</div>
+            </div>
+
+            <div class="form-field">
+              <label class="field-label" for="arch-credi">credi.build Profile Handle</label>
+              <input type="text" id="arch-credi" name="arch_credi_handle"
+                     placeholder="e.g. jokafor (optional — links to verified identity)" />
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ─────────────────────────────────────────────────────
+             SECTION 3 — THE CLIENT (OFFEREE)
+             The party receiving the offer.
+        ───────────────────────────────────────────────────────── -->
+        <div class="form-section">
+          <div class="section-head">
+            <div class="section-num">3</div>
+            <div class="section-title">The Client — Offeree</div>
+          </div>
+          <div class="section-body">
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="field-label" for="client-name">
+                  Full Name <span class="req">*</span>
+                </label>
+                <input type="text" id="client-name" name="client_name"
+                       placeholder="e.g. S Williams" required />
+              </div>
+              <div class="form-field">
+                <label class="field-label" for="client-phone">Phone</label>
+                <input type="tel" id="client-phone" name="client_phone"
+                       placeholder="+44 7700 000000" />
+              </div>
+            </div>
+
+            <div class="form-field full">
+              <label class="field-label" for="client-address">
+                Client Address <span class="req">*</span>
+              </label>
+              <textarea id="client-address" name="client_address" rows="2"
+                        placeholder="Full postal address" required></textarea>
+            </div>
+
+            <div class="form-field full">
+              <label class="field-label" for="client-email">Email</label>
+              <input type="email" id="client-email" name="client_email"
+                     placeholder="client@email.com" />
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ─────────────────────────────────────────────────────
+             SECTION 4 — THE PROJECT
+             Where the works are happening.
+        ───────────────────────────────────────────────────────── -->
+        <div class="form-section">
+          <div class="section-head">
+            <div class="section-num">4</div>
+            <div class="section-title">The Project</div>
+          </div>
+          <div class="section-body">
+
+            <div class="form-field full">
+              <label class="field-label" for="project-address">
+                Site Address <span class="req">*</span>
+              </label>
+              <textarea id="project-address" name="project_address" rows="2"
+                        placeholder="Address of the property where works will take place (if different from client address, otherwise repeat client address)" required></textarea>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="field-label" for="project-type">
+                  Project Type <span class="req">*</span>
+                </label>
+                <select id="project-type" name="project_type" required>
+                  <option value="">-- Select --</option>
+                  <option value="single_storey_extension">Single Storey Extension</option>
+                  <option value="double_storey_extension">Double Storey Extension</option>
+                  <option value="loft_conversion">Loft Conversion</option>
+                  <option value="garage_conversion">Garage Conversion</option>
+                  <option value="new_build_residential">New Build Residential</option>
+                  <option value="renovation_alteration">Renovation / Alteration</option>
+                  <option value="outbuilding">Outbuilding / Garden Building</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label class="field-label" for="project-value">
+                  Estimated Construction Value (£)
+                </label>
+                <input type="number" id="project-value" name="project_value"
+                       placeholder="e.g. 85000" min="0" />
+                <div class="field-hint">Approximate build cost — used to confirm fee basis</div>
+              </div>
+            </div>
+
+            <div class="form-field full">
+              <label class="field-label" for="project-desc">
+                Brief Description of Works <span class="req">*</span>
+              </label>
+              <textarea id="project-desc" name="project_description" rows="3"
+                        placeholder="e.g. Single storey rear extension approximately 4m x 6m, open plan kitchen/dining. New roof lantern. Bifold doors to garden." required></textarea>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ─────────────────────────────────────────────────────
+             SECTION 5 — SCOPE OF SERVICES
+             Which RIBA stages are included in this offer.
+             RIBA Plan of Work 2020 stages: 0–7
+             For a domestic extension, typically stages 1–4 minimum.
+             Stage 5 (construction observation) is often optional.
+        ───────────────────────────────────────────────────────── -->
+        <div class="form-section">
+          <div class="section-head">
+            <div class="section-num">5</div>
+            <div class="section-title">Scope of Services — RIBA Stages</div>
+          </div>
+          <div class="section-body">
+
+            <div class="field-hint" style="margin-bottom: 4px;">
+              Select the stages included in this offer. Tick all that apply.
+            </div>
+
+            <div class="check-group">
+
+              <label class="check-item">
+                <input type="checkbox" name="riba_stage_0" value="1" />
+                <div class="check-label">
+                  <div class="check-title">Stage 0 — Strategic Definition</div>
+                  <div class="check-desc">Initial feasibility. Is the project viable? Brief development.</div>
+                </div>
+              </label>
+
+              <label class="check-item">
+                <input type="checkbox" name="riba_stage_1" value="1" checked />
+                <div class="check-label">
+                  <div class="check-title">Stage 1 — Preparation and Brief</div>
+                  <div class="check-desc">Confirm requirements. Initial site appraisal. Design brief.</div>
+                </div>
+              </label>
+
+              <label class="check-item">
+                <input type="checkbox" name="riba_stage_2" value="1" checked />
+                <div class="check-label">
+                  <div class="check-title">Stage 2 — Concept Design</div>
+                  <div class="check-desc">Architectural concept. Options. Initial structural and services appraisal.</div>
+                </div>
+              </label>
+
+              <label class="check-item">
+                <input type="checkbox" name="riba_stage_3" value="1" checked />
+                <div class="check-label">
+                  <div class="check-title">Stage 3 — Spatial Coordination</div>
+                  <div class="check-desc">Developed design. Planning application drawings. Coordination with structural engineer.</div>
+                </div>
+              </label>
+
+              <label class="check-item">
+                <input type="checkbox" name="riba_stage_4" value="1" checked />
+                <div class="check-label">
+                  <div class="check-title">Stage 4 — Technical Design</div>
+                  <div class="check-desc">Building regulations drawings. Technical specifications. Tender package.</div>
+                </div>
+              </label>
+
+              <label class="check-item">
+                <input type="checkbox" name="riba_stage_5" value="1" />
+                <div class="check-label">
+                  <div class="check-title">Stage 5 — Manufacturing and Construction</div>
+                  <div class="check-desc">Contract administration. Site visits. Progress monitoring. Instruction issuing.</div>
+                </div>
+              </label>
+
+              <label class="check-item">
+                <input type="checkbox" name="riba_stage_6" value="1" />
+                <div class="check-label">
+                  <div class="check-title">Stage 6 — Handover</div>
+                  <div class="check-desc">Practical completion. Snagging. Building manual. Final account.</div>
+                </div>
+              </label>
+
+            </div>
+
+            <div class="form-field full" style="margin-top: 4px;">
+              <label class="field-label" for="scope-notes">Additional Scope Notes</label>
+              <textarea id="scope-notes" name="scope_notes" rows="2"
+                        placeholder="e.g. Structural engineer coordination included. Planning pre-application advice excluded. Permitted development assessment included."></textarea>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ─────────────────────────────────────────────────────
+             SECTION 6 — FEE AND PAYMENT
+             How much and when.
+             For domestic extensions, architects typically charge:
+             - Fixed fee (most common for defined scope)
+             - Percentage of construction cost (less common for small projects)
+             Payment is usually split across RIBA stages.
+        ───────────────────────────────────────────────────────── -->
+        <div class="form-section">
+          <div class="section-head">
+            <div class="section-num">6</div>
+            <div class="section-title">Fee and Payment</div>
+          </div>
+          <div class="section-body">
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="field-label" for="fee-basis">
+                  Fee Basis <span class="req">*</span>
+                </label>
+                <select id="fee-basis" name="fee_basis" required>
+                  <option value="">-- Select --</option>
+                  <option value="fixed">Fixed Fee</option>
+                  <option value="percentage">Percentage of Construction Cost</option>
+                  <option value="hourly">Hourly Rate</option>
+                  <option value="mixed">Mixed (fixed + hourly for extras)</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label class="field-label" for="fee-total">
+                  Total Fee (£ excl. VAT) <span class="req">*</span>
+                </label>
+                <input type="number" id="fee-total" name="fee_total"
+                       placeholder="e.g. 4500" min="0" required />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="field-label" for="vat-applicable">VAT</label>
+                <select id="vat-applicable" name="vat_applicable">
+                  <option value="yes">VAT applicable (20%)</option>
+                  <option value="no">VAT not applicable</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label class="field-label" for="retention-pct">Retention (%)</label>
+                <input type="number" id="retention-pct" name="retention_pct"
+                       placeholder="5" min="0" max="10" value="5" />
+                <div class="field-hint">% withheld until end of defects period</div>
+              </div>
+            </div>
+
+            <!-- Payment schedule table — split across key milestones -->
+            <div class="form-field full">
+              <div class="field-label" style="margin-bottom: 8px;">
+                Payment Schedule <span class="req">*</span>
+              </div>
+              <div class="field-hint" style="margin-bottom: 8px;">
+                Enter percentage at each milestone. Total must equal 100%.
+              </div>
+              <div class="fee-table">
+                <div class="fee-table-head">
+                  <div class="fee-cell head">Milestone</div>
+                  <div class="fee-cell head">% of Fee</div>
+                  <div class="fee-cell head">Trigger</div>
+                </div>
+                <div class="fee-table-body">
+                  <div class="fee-row">
+                    <div class="fee-cell">On appointment</div>
+                    <div class="fee-cell">
+                      <input type="number" name="payment_pct_1" placeholder="10"
+                             min="0" max="100" />
+                    </div>
+                    <div class="fee-cell">
+                      <input type="text" name="payment_trigger_1"
+                             placeholder="Signed appointment" />
+                    </div>
+                  </div>
+                  <div class="fee-row">
+                    <div class="fee-cell">Planning submission</div>
+                    <div class="fee-cell">
+                      <input type="number" name="payment_pct_2" placeholder="40"
+                             min="0" max="100" />
+                    </div>
+                    <div class="fee-cell">
+                      <input type="text" name="payment_trigger_2"
+                             placeholder="Plans submitted to LPA" />
+                    </div>
+                  </div>
+                  <div class="fee-row">
+                    <div class="fee-cell">Planning granted</div>
+                    <div class="fee-cell">
+                      <input type="number" name="payment_pct_3" placeholder="25"
+                             min="0" max="100" />
+                    </div>
+                    <div class="fee-cell">
+                      <input type="text" name="payment_trigger_3"
+                             placeholder="Planning permission granted" />
+                    </div>
+                  </div>
+                  <div class="fee-row">
+                    <div class="fee-cell">Building regs issue</div>
+                    <div class="fee-cell">
+                      <input type="number" name="payment_pct_4" placeholder="20"
+                             min="0" max="100" />
+                    </div>
+                    <div class="fee-cell">
+                      <input type="text" name="payment_trigger_4"
+                             placeholder="Building regs drawings issued" />
+                    </div>
+                  </div>
+                  <div class="fee-row">
+                    <div class="fee-cell">Practical completion</div>
+                    <div class="fee-cell">
+                      <input type="number" name="payment_pct_5" placeholder="5"
+                             min="0" max="100" />
+                    </div>
+                    <div class="fee-cell">
+                      <input type="text" name="payment_trigger_5"
+                             placeholder="Works complete + retention released" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="field-label" for="defects-period">
+                  Defects Liability Period (months)
+                </label>
+                <input type="number" id="defects-period" name="defects_period_months"
+                       placeholder="12" min="0" max="24" value="12" />
+              </div>
+              <div class="form-field">
+                <label class="field-label" for="payment-terms">Payment Terms (days)</label>
+                <input type="number" id="payment-terms" name="payment_terms_days"
+                       placeholder="14" min="0" max="60" value="14" />
+                <div class="field-hint">Days to pay from invoice date</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ─────────────────────────────────────────────────────
+             SECTION 7 — PROGRAMME
+             When the architect expects to deliver each stage.
+        ───────────────────────────────────────────────────────── -->
+        <div class="form-section">
+          <div class="section-head">
+            <div class="section-num">7</div>
+            <div class="section-title">Programme</div>
+          </div>
+          <div class="section-body">
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="field-label" for="prog-start">
+                  Proposed Start Date <span class="req">*</span>
+                </label>
+                <input type="date" id="prog-start" name="programme_start" required />
+              </div>
+              <div class="form-field">
+                <label class="field-label" for="prog-planning-target">
+                  Planning Submission Target
+                </label>
+                <input type="date" id="prog-planning-target" name="programme_planning_target" />
+                <div class="field-hint">LPA determination takes 8 weeks from valid submission</div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="field-label" for="prog-regs-target">
+                  Building Regs Drawings Target
+                </label>
+                <input type="date" id="prog-regs-target" name="programme_regs_target" />
+              </div>
+              <div class="form-field">
+                <label class="field-label" for="prog-duration">
+                  Overall Design Programme (weeks)
+                </label>
+                <input type="number" id="prog-duration" name="programme_duration_weeks"
+                       placeholder="e.g. 12" min="1" max="52" />
+              </div>
+            </div>
+
+            <div class="form-field full">
+              <label class="field-label" for="prog-notes">Programme Notes</label>
+              <textarea id="prog-notes" name="programme_notes" rows="2"
+                        placeholder="e.g. Programme assumes prompt client feedback at each stage. Planning determination period (8 weeks) not included in architect programme."></textarea>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ─────────────────────────────────────────────────────
+             SECTION 8 — GOVERNING CONTRACT
+             The standard form contract this offer is made under.
+             The PDF of the signed contract is hashed here so it
+             cannot be altered after signing without detection.
+        ───────────────────────────────────────────────────────── -->
+        <div class="form-section">
+          <div class="section-head">
+            <div class="section-num">8</div>
+            <div class="section-title">Governing Contract</div>
+          </div>
+          <div class="section-body">
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="field-label" for="contract-form">
+                  Standard Form <span class="req">*</span>
+                </label>
+                <select id="contract-form" name="governing_contract_form" required>
+                  <option value="RIBA_DPS">RIBA Domestic Professional Services Contract</option>
+                  <option value="RIBA_SFA">RIBA Standard Form of Agreement</option>
+                  <option value="RIBA_SW">RIBA Small Works Contract</option>
+                  <option value="bespoke">Bespoke Letter of Appointment</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label class="field-label" for="contract-version">Contract Version / Year</label>
+                <input type="text" id="contract-version" name="governing_contract_version"
+                       placeholder="e.g. 2020 edition" />
+              </div>
+            </div>
+
+            <div class="form-field full">
+              <label class="field-label" for="contract-hash">
+                Signed Contract PDF — SHA-256 Hash
+              </label>
+              <input type="text" id="contract-hash" name="governing_contract_pdf_hash"
+                     placeholder="Paste SHA-256 hash of the signed contract PDF (optional at offer stage — added on acceptance)" />
+              <div class="field-hint">
+                The hash anchors the PDF to this record. Any change to the PDF will invalidate the hash.
+                Leave blank at offer stage — populate in FORMA-ACCEPT-001 when the signed PDF exists.
+              </div>
+            </div>
+
+            <div class="form-field">
+              <label class="field-label" for="governing-law">Governing Law</label>
+              <select id="governing-law" name="governing_law">
+                <option value="england_wales">England and Wales</option>
+                <option value="scotland">Scotland</option>
+                <option value="northern_ireland">Northern Ireland</option>
+              </select>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ─────────────────────────────────────────────────────
+             SECTION 9 — SPECIAL CONDITIONS
+             Any terms specific to this offer.
+        ───────────────────────────────────────────────────────── -->
+        <div class="form-section">
+          <div class="section-head">
+            <div class="section-num">9</div>
+            <div class="section-title">Special Conditions</div>
+          </div>
+          <div class="section-body">
+
+            <div class="form-field full">
+              <label class="field-label" for="special-conditions">
+                Special Conditions (optional)
+              </label>
+              <textarea id="special-conditions" name="special_conditions" rows="3"
+                        placeholder="e.g. Fee excludes structural engineer appointment and fees. Planning pre-application advice charged separately at hourly rate. Client to provide existing drawings if available."></textarea>
+            </div>
+
+            <div class="form-field full">
+              <label class="field-label" for="exclusions">
+                Exclusions (optional)
+              </label>
+              <textarea id="exclusions" name="exclusions" rows="2"
+                        placeholder="e.g. Structural calculations. Party wall surveyor fees. Planning application fee (paid direct to LPA). Building control fee."></textarea>
+            </div>
+
+          </div>
+        </div>
+
+      </div><!-- end .form-body -->
+
+      <!-- ═══════════════════════════════════════════════════════
+           SECTION 10 — SIGN AND GENERATE
+           Collects all form data, computes SHA-256 hash,
+           generates fingerprint, outputs a .forma HTML file.
+           The .forma file is a self-contained signed record —
+           no server required, verifiable offline.
+      ══════════════════════════════════════════════════════════ -->
+      <div class="sign-section" id="sign-section">
+
+        <div class="sign-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.5">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          Generate and Sign Offer
+        </div>
+
+        <div class="sign-sub">
+          Once you click Generate, all field data is collected and hashed using SHA-256.
+          The fingerprint is embedded in the downloaded .forma file. Any edit to the
+          downloaded file will invalidate the hash — that is the tamper detection.
+          Send the .forma file to your architect. They respond with FORMA-ACCEPT-001.
+        </div>
+
+        <button type="button" class="btn-sign" id="btn-sign" onclick="generateOffer()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.5">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          Generate &amp; Sign Offer
+        </button>
+
+        <!-- OFSIG result — shown after signing -->
+        <div class="ofsig-result" id="ofsig-result">
+          <div class="ofsig-result-title">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                 stroke="#22c55e" stroke-width="2.5">
+              <path d="M20 6L9 17l-5-5"/>
+            </svg>
+            OFSIG — Fingerprint Generated
+          </div>
+          <div class="ofsig-grid">
+            <div class="ofsig-row">
+              <div class="ofsig-key">Status</div>
+              <div class="ofsig-val ok" id="sig-status">SIGNED</div>
+            </div>
+            <div class="ofsig-row">
+              <div class="ofsig-key">Fingerprint</div>
+              <div class="ofsig-val fp" id="sig-fingerprint">--</div>
+            </div>
+            <div class="ofsig-row">
+              <div class="ofsig-key">Issued</div>
+              <div class="ofsig-val" id="sig-issued">--</div>
+            </div>
+            <div class="ofsig-row">
+              <div class="ofsig-key">Algorithm</div>
+              <div class="ofsig-val">SHA-256 · Phase 1A (Ed25519 in Phase 2)</div>
+            </div>
+            <div class="ofsig-row">
+              <div class="ofsig-key">Hash (SHA-256)</div>
+              <div class="ofsig-val" id="sig-hash">--</div>
+            </div>
+            <div class="ofsig-row">
+              <div class="ofsig-key">Schema</div>
+              <div class="ofsig-val">LEG-DOC-001 · LEG-DOC-001 · OpenFORMA v1.0</div>
+            </div>
+            <div class="ofsig-row">
+              <div class="ofsig-key">Issuer</div>
+              <div class="ofsig-val">OpenFORMA · Ark &amp; Aico Labs</div>
+            </div>
+            <div class="ofsig-row">
+              <div class="ofsig-key">Blockchain Anchor</div>
+              <div class="ofsig-val" style="color: var(--muted);">Pending (Phase 3)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Download button — shown after signing -->
+        <button type="button" class="btn-download" id="btn-download"
+                onclick="downloadForma()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Download .forma File
+        </button>
+
+      </div>
+
+      </form><!-- end #offer-form -->
+
+      <!-- Page foot -->
+      <div class="page-foot">
+        <div class="page-foot-meta">
+          <div class="page-foot-line strong" id="foot-date">--</div>
+          <div class="page-foot-line" id="foot-fingerprint">LEG-DOC-001 · Awaiting signature</div>
+          <div class="page-foot-line">OpenFORMA · LEG-DOC-001 · LEG-DOC-001 · CC-BY-4.0</div>
+        </div>
+        <div class="page-foot-qr" id="print-qr"></div>
+      </div>
+
+      <!-- Doc footer bar -->
+      <div class="doc-footer">
+        <span>LEG-DOC-001 · OpenFORMA v1.0 · Ark &amp; Aico Labs</span>
+        <span class="doc-footer-accent">OCP Protocol · OFSIG Signing Layer</span>
+      </div>
+
+    </div><!-- end .page -->
+
+    <!-- ═══════════════════════════════════════════════════════
+         SIDEBAR
+    ══════════════════════════════════════════════════════════ -->
+    <div class="stage-sidebar">
+
+      <button class="sidebar-btn" title="Print" onclick="window.print()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <polyline points="6 9 6 2 18 2 18 9"/>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+          <rect x="6" y="14" width="12" height="8"/>
+        </svg>
+        <span>Print</span>
+      </button>
+
+      <button class="sidebar-btn" title="Scroll to sign section"
+              onclick="document.getElementById('sign-section').scrollIntoView({behavior:'smooth'})">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <span>Sign</span>
+      </button>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="sidebar-status" id="sidebar-status">
+        Unsigned<br>Draft
+      </div>
+
+    </div>
+
+  </div><!-- end .stage-layout -->
+
+  <!-- ═══════════════════════════════════════════════════════════
+       JAVASCRIPT — FORM SIGNING AND .forma OUTPUT GENERATION
+
+       HOW IT WORKS:
+       1. collectFormData()  — reads all inputs into a plain JS object
+       2. computeHash()      — SHA-256 hash via WebCrypto (browser built-in)
+       3. generateOffer()    — validates, hashes, shows OFSIG block
+       4. buildFormaHTML()   — builds the complete signed .forma HTML string
+       5. downloadForma()    — triggers browser download of the .forma file
+
+       The .forma file is a self-contained HTML file with the signed
+       data embedded in a <script type="application/openforma+json">
+       block in the <head>. Anyone can open it in a browser, print it,
+       or parse the JSON block to verify the hash.
+
+       NO SERVER REQUIRED. Everything runs in the browser.
+       NO DEPENDENCIES. WebCrypto is built into every modern browser.
+  ══════════════════════════════════════════════════════════════ -->
+  <script>
+
+    // ── Global: stores the signed data after generateOffer() ──
+    var signedData = null;
+
+    // ── Set today's date as default for offer-date ────────────
+    window.addEventListener('DOMContentLoaded', function() {
+      var today = new Date().toISOString().split('T')[0];
+      document.getElementById('offer-date').value = today;
+
+      // Default expiry: 30 days from today
+      var expiry = new Date();
+      expiry.setDate(expiry.getDate() + 30);
+      document.getElementById('offer-expiry').value = expiry.toISOString().split('T')[0];
+
+      // Set foot date to today
+      document.getElementById('foot-date').textContent = formatDate(new Date());
+    });
+
+    // ── Collect all form fields into a plain object ────────────
+    // Returns an object with every named field's current value.
+    function collectFormData() {
+
+      var form = document.getElementById('offer-form');
+      var data = {};
+
+      // Text, email, tel, number, date, textarea, select inputs
+      var inputs = form.querySelectorAll('input[name], textarea[name], select[name]');
+      inputs.forEach(function(input) {
+        if (input.type === 'checkbox') {
+          // Checkboxes: store true/false
+          data[input.name] = input.checked;
+        } else {
+          // Everything else: store the string value (empty string if blank)
+          data[input.name] = input.value.trim();
+        }
+      });
+
+      // Add schema metadata to the data object
+      data._schema        = 'LEG-DOC-001';
+      data._flo_id        = 'LEG-DOC-001';
+      data._openforma_ver = '1.0';
+      data._protocol      = 'OCP';
+      data._status        = 'OFFERED';
+
+      return data;
+    }
+
+    // ── Validate required fields ──────────────────────────────
+    // Returns true if valid, false if any required field is empty.
+    // Highlights empty required fields with a red border.
+    function validateForm() {
+
+      var valid = true;
+      var form = document.getElementById('offer-form');
+
+      // Clear previous error states
+      form.querySelectorAll('.error').forEach(function(el) {
+        el.classList.remove('error');
+      });
+
+      // Check all required inputs
+      form.querySelectorAll('[required]').forEach(function(input) {
+        if (!input.value.trim()) {
+          input.classList.add('error');
+          valid = false;
+        }
+      });
+
+      if (!valid) {
+        // Scroll to the first error
+        var firstError = form.querySelector('.error');
+        if (firstError) {
+          firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          firstError.focus();
+        }
+        alert('Please fill in all required fields (marked with a red asterisk) before generating the offer.');
+      }
+
+      return valid;
+    }
+
+    // ── Compute SHA-256 hash of a string ─────────────────────
+    // Uses WebCrypto — built into every modern browser.
+    // Returns a hex string (64 characters).
+    async function computeHash(text) {
+
+      // Encode the string as bytes
+      var encoder = new TextEncoder();
+      var data = encoder.encode(text);
+
+      // Compute SHA-256 using the browser's built-in crypto
+      var hashBuffer = await crypto.subtle.digest('SHA-256', data);
+
+      // Convert the hash buffer to a hex string
+      var hashArray = Array.from(new Uint8Array(hashBuffer));
+      var hashHex = hashArray.map(function(byte) {
+        return byte.toString(16).padStart(2, '0');
+      }).join('');
+
+      return hashHex;
+    }
+
+    // ── Generate fingerprint from hash ─────────────────────
+    // Format: OFSIG-LEG-DOC-001-{first 8 chars of hash}
+    function generateFingerprint(hash) {
+      return 'OFSIG-LEG-DOC-001-' + hash.substring(0, 8).toUpperCase();
+    }
+
+    // ── Format a date for human display ───────────────────────
+    function formatDate(date) {
+      var options = { day: 'numeric', month: 'long', year: 'numeric',
+                      hour: '2-digit', minute: '2-digit' };
+      return date.toLocaleDateString('en-GB', options);
+    }
+
+    // ── Main: generate and sign the offer ─────────────────────
+    // Called by the "Generate & Sign Offer" button.
+    async function generateOffer() {
+
+      // Step 1: validate required fields
+      if (!validateForm()) return;
+
+      // Step 2: disable the sign button to prevent double-click
+      var signBtn = document.getElementById('btn-sign');
+      signBtn.disabled = true;
+      signBtn.textContent = 'Generating...';
+
+      try {
+
+        // Step 3: collect all form data
+        var formData = collectFormData();
+
+        // Step 4: add the timestamp to the data before hashing
+        var now = new Date();
+        formData._issued_at = now.toISOString();
+
+        // Step 5: serialise to JSON (deterministic key order for consistent hashing)
+        var jsonString = JSON.stringify(formData, Object.keys(formData).sort());
+
+        // Step 6: compute the SHA-256 hash
+        var hash = await computeHash(jsonString);
+
+        // Step 7: generate the fingerprint
+        var fingerprint = generateFingerprint(hash);
+
+        // Step 8: store signed data globally for download
+        signedData = {
+          formData: formData,
+          hash: hash,
+          fingerprint: fingerprint,
+          issuedAt: now.toISOString(),
+          issuedFormatted: formatDate(now),
+          jsonString: jsonString
+        };
+
+        // Step 9: update the OFSIG result block with real values
+        document.getElementById('sig-fingerprint').textContent = fingerprint;
+        document.getElementById('sig-issued').textContent = signedData.issuedFormatted;
+        document.getElementById('sig-hash').textContent = hash;
+
+        // Step 10: show the OFSIG result block and download button
+        document.getElementById('ofsig-result').classList.add('show');
+        document.getElementById('btn-download').classList.add('show');
+
+        // Step 11: update the sticky header badge
+        var badge = document.getElementById('header-badge');
+        badge.className = 'stage-ofsig-badge signed';
+        badge.innerHTML = '<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> OFSIG Signed';
+
+        // Step 12: update sidebar status
+        document.getElementById('sidebar-status').className = 'sidebar-status signed';
+        document.getElementById('sidebar-status').textContent = 'Signed';
+
+        // Step 13: update page foot
+        document.getElementById('foot-date').textContent = signedData.issuedFormatted;
+        document.getElementById('foot-fingerprint').textContent = fingerprint;
+
+        // Step 14: scroll to the OFSIG result so they can see it
+        document.getElementById('ofsig-result').scrollIntoView({ behavior: 'smooth' });
+
+      } catch (error) {
+        // If anything goes wrong, log it and re-enable the button
+        console.error('Signing error:', error);
+        alert('An error occurred during signing. Please try again. Error: ' + error.message);
+        signBtn.disabled = false;
+        signBtn.textContent = 'Generate & Sign Offer';
+      }
+    }
+
+    // ── Build the signed .forma HTML output ───────────────────
+    // Takes the signed data and builds a complete, self-contained
+    // HTML file. This file IS the signed document — it contains
+    // the JSON data block for machine reading and a human-readable
+    // rendered view of all the offer fields.
+    function buildFormaHTML() {
+
+      if (!signedData) return '';
+
+      var d = signedData.formData;
+      var fp = signedData.fingerprint;
+      var hash = signedData.hash;
+      var issued = signedData.issuedFormatted;
+
+      // Collect which RIBA stages were selected
+      var selectedStages = [];
+      var stageNames = {
+        'riba_stage_0': 'Stage 0 — Strategic Definition',
+        'riba_stage_1': 'Stage 1 — Preparation and Brief',
+        'riba_stage_2': 'Stage 2 — Concept Design',
+        'riba_stage_3': 'Stage 3 — Spatial Coordination',
+        'riba_stage_4': 'Stage 4 — Technical Design',
+        'riba_stage_5': 'Stage 5 — Manufacturing and Construction',
+        'riba_stage_6': 'Stage 6 — Handover'
+      };
+
+      Object.keys(stageNames).forEach(function(key) {
+        if (d[key] === true) {
+          selectedStages.push(stageNames[key]);
+        }
+      });
+
+      // Helper: escape HTML special characters for safe embedding
+      function esc(str) {
+        if (!str) return '—';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      // Build the JSON machine-readable block
+      var jsonBlock = JSON.stringify({
+        openforma: '1.0',
+        schema: 'LEG-DOC-001',
+        flo_id: 'LEG-DOC-001',
+        data: signedData.formData,
+        ofsig: {
+          status: 'SIGNED',
+          algorithm: 'SHA-256',
+          fingerprint: fp,
+          hash: hash,
+          hash_short: hash.substring(0, 16),
+          issued: signedData.issuedAt,
+          issuer: 'OpenFORMA / Ark & Aico Labs',
+          blockchain_anchor: null,
+          note: 'Phase 1A: SHA-256 hash fingerprinting. Ed25519 asymmetric signing in Phase 2.'
+        }
+      }, null, 2);
+
+      // Build the complete HTML output file
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LEG-DOC-001 — ${esc(d.arch_name)} to ${esc(d.client_name)} — ${esc(fp)}</title>
+
+  <!--
+    OPENFORMA SIGNED DOCUMENT
+    Schema:       LEG-DOC-001 (LEG-DOC-001)
+    Fingerprint:  ${fp}
+    Issued:       ${issued}
+    Hash:         ${hash}
+
+    To verify: take the JSON in the script#ofsig-data block below,
+    extract the "data" field, serialise with sorted keys, and
+    compute SHA-256. Compare to the hash field.
+    Any mismatch means the document has been altered.
+  -->
+
+  <!-- Machine-readable JSON block — canonical signed record -->
+  <script type="application/openforma+json" id="ofsig-data">
+${jsonBlock}
+  <\/script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; }
+    html, body {
+      background: #0f0e0d;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 44px 44px;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      color: #111315;
+      min-height: 100vh;
+    }
+    body { padding: 0 20px 60px; }
+    .stage-header {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 12px 24px; margin: 0 -20px 28px;
+      background: rgba(15,14,13,0.93); backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .stage-brand { font-size: 0.9rem; font-weight: 800; letter-spacing: -0.02em; color: #fff; text-decoration: none; }
+    .stage-brand span { color: #d18a1f; }
+    .stage-doc-id { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.35); flex: 1; text-align: center; }
+    .badge-signed { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.25); color: #22c55e; }
+    .stage-layout { display: flex; gap: 16px; align-items: flex-start; max-width: 920px; margin: 0 auto; }
+    .stage-sidebar { position: sticky; top: 72px; width: 52px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; order: 2; }
+    .sidebar-btn { width: 44px; height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.4); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-family: inherit; }
+    .sidebar-btn span { font-size: 7px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+    .sidebar-btn.signed-state { border-color: #22c55e; color: #22c55e; background: rgba(34,197,94,0.10); }
+    .page { flex: 1; order: 1; max-width: 794px; background: #fff; box-shadow: 0 24px 64px rgba(0,0,0,0.5); position: relative; overflow: hidden; }
+    .page::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: linear-gradient(180deg, #d18a1f 0%, #a46812 100%); z-index: 2; }
+    .doc-header { background: linear-gradient(135deg, #1a1d22 0%, #22272e 100%); color: #f8f8f4; padding: 20px 28px 18px 32px; border-bottom: 3px solid #d18a1f; display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: start; }
+    .doc-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.14em; color: #d18a1f; margin-bottom: 4px; }
+    .doc-name { font-size: 22px; font-weight: 900; letter-spacing: -0.03em; margin: 0 0 4px; line-height: 1.1; }
+    .doc-sub { font-size: 11px; color: rgba(248,248,244,0.45); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+    .doc-schema-badge { background: rgba(209,138,31,0.15); border: 1px solid rgba(209,138,31,0.3); border-radius: 4px; padding: 8px 12px; text-align: right; }
+    .schema-id { font-size: 11px; font-weight: 900; color: #d18a1f; letter-spacing: 0.06em; display: block; }
+    .schema-ver { font-size: 9px; color: rgba(248,248,244,0.35); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+    .signed-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.3); border-radius: 999px; padding: 5px 12px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #22c55e; margin-top: 10px; }
+    .doc-body { padding: 24px 28px 24px 32px; display: grid; gap: 20px; }
+    .section { border: 1px solid #e5e7eb; border-radius: 4px; overflow: hidden; }
+    .section-head { background: #f3f4f6; border-bottom: 1px solid #e5e7eb; padding: 10px 16px; display: flex; align-items: center; gap: 10px; }
+    .section-num { width: 20px; height: 20px; border-radius: 50%; background: #d18a1f; color: #fff; font-size: 9px; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .section-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #374151; }
+    .section-body { padding: 16px; display: grid; gap: 10px; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .field { display: grid; gap: 2px; }
+    .field.full { grid-column: 1 / -1; }
+    .field-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; }
+    .field-value { font-size: 13px; font-weight: 500; color: #111315; padding: 6px 0; border-bottom: 1px solid #f3f4f6; }
+    .stage-list { list-style: none; display: grid; gap: 4px; }
+    .stage-list li { font-size: 12px; color: #374151; padding: 6px 10px; background: #f9fafb; border-radius: 4px; border-left: 3px solid #d18a1f; }
+    .ofsig-block { margin: 0 28px 0 32px; background: #fffbf0; border: 1px solid #f0d8a0; border-radius: 4px; padding: 16px 18px; }
+    .ofsig-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: #a46812; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .ofsig-grid { display: grid; gap: 7px; }
+    .ofsig-row { display: grid; grid-template-columns: 130px 1fr; gap: 10px; font-size: 9.5px; align-items: start; }
+    .ofsig-key { font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; }
+    .ofsig-val { font-family: "Courier New", monospace; color: #111315; word-break: break-all; font-size: 9px; }
+    .ofsig-val.fp { font-size: 12px; font-weight: 800; color: #d18a1f; font-family: inherit; letter-spacing: 0.04em; }
+    .ofsig-val.ok { color: #22c55e; font-weight: 800; font-family: inherit; font-size: 11px; }
+    .page-foot { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px 10px 32px; margin-top: 20px; background: linear-gradient(135deg, #f3f4f1 0%, #eceee9 100%); border-top: 1px solid #e5e7eb; }
+    .page-foot-meta { display: grid; gap: 2px; }
+    .pf-line { font-size: 8px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #6b7280; }
+    .pf-line.strong { font-size: 9px; color: #374151; }
+    .doc-footer { display: flex; justify-content: space-between; align-items: center; padding: 8px 28px 10px 32px; border-top: 1px solid #e5e7eb; background: #f3f4f6; font-size: 8px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #6b7280; }
+    .doc-footer-accent { color: #a46812; }
+    @media print {
+      html, body { background: #fff !important; padding: 0 !important; }
+      .stage-header, .stage-sidebar { display: none !important; }
+      .stage-layout { display: block !important; }
+      .page { box-shadow: none !important; max-width: 100% !important; }
+    }
+    @media (max-width: 860px) { .stage-sidebar { display: none; } .stage-layout { display: block; } }
+  </style>
+</head>
+<body>
+
+  <div class="stage-header">
+    <span class="stage-brand">Open<span>FORMA</span></span>
+    <span class="stage-doc-id">LEG-DOC-001 · ${esc(d.arch_name)} → ${esc(d.client_name)}</span>
+    <span class="badge-signed">
+      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+      OFSIG Signed
+    </span>
+  </div>
+
+  <div class="stage-layout">
+    <div class="page">
+
+      <div class="doc-header">
+        <div>
+          <div class="doc-title">OpenFORMA · LEG-DOC-001</div>
+          <h1 class="doc-name">Offer to Provide<br>Architectural Services</h1>
+          <div class="doc-sub">Domestic Extension · UK · RIBA Plan of Work</div>
+          <div class="signed-badge">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+            OFSIG Signed · Tamper-Evident
+          </div>
+        </div>
+        <div class="doc-schema-badge">
+          <span class="schema-id">LEG-DOC-001</span>
+          <span class="schema-ver">OpenFORMA v1.0</span>
+        </div>
+      </div>
+
+      <div class="doc-body">
+
+        <div class="section">
+          <div class="section-head"><div class="section-num">1</div><div class="section-title">Offer Details</div></div>
+          <div class="section-body">
+            <div class="field-row">
+              <div class="field"><div class="field-label">Offer Date</div><div class="field-value">${esc(d.offer_date)}</div></div>
+              <div class="field"><div class="field-label">Offer Valid Until</div><div class="field-value">${esc(d.offer_expiry)}</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><div class="section-num">2</div><div class="section-title">The Architect — Offeror</div></div>
+          <div class="section-body">
+            <div class="field-row">
+              <div class="field"><div class="field-label">Full Name</div><div class="field-value">${esc(d.arch_name)}</div></div>
+              <div class="field"><div class="field-label">Practice</div><div class="field-value">${esc(d.arch_company)}</div></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><div class="field-label">ARB Number</div><div class="field-value">${esc(d.arch_arb)}</div></div>
+              <div class="field"><div class="field-label">RIBA Number</div><div class="field-value">${esc(d.arch_riba)}</div></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><div class="field-label">Email</div><div class="field-value">${esc(d.arch_email)}</div></div>
+              <div class="field"><div class="field-label">Phone</div><div class="field-value">${esc(d.arch_phone)}</div></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><div class="field-label">PI Insurance</div><div class="field-value">${esc(d.arch_pi_confirmed)}</div></div>
+              <div class="field"><div class="field-label">credi.build</div><div class="field-value">${d.arch_credi_handle ? 'credi.build/' + esc(d.arch_credi_handle) : '—'}</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><div class="section-num">3</div><div class="section-title">The Client — Offeree</div></div>
+          <div class="section-body">
+            <div class="field-row">
+              <div class="field"><div class="field-label">Full Name</div><div class="field-value">${esc(d.client_name)}</div></div>
+              <div class="field"><div class="field-label">Phone</div><div class="field-value">${esc(d.client_phone)}</div></div>
+            </div>
+            <div class="field full"><div class="field-label">Address</div><div class="field-value">${esc(d.client_address)}</div></div>
+            <div class="field full"><div class="field-label">Email</div><div class="field-value">${esc(d.client_email)}</div></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><div class="section-num">4</div><div class="section-title">The Project</div></div>
+          <div class="section-body">
+            <div class="field-row">
+              <div class="field"><div class="field-label">Project Type</div><div class="field-value">${esc(d.project_type).replace(/_/g,' ')}</div></div>
+              <div class="field"><div class="field-label">Est. Construction Value</div><div class="field-value">${d.project_value ? '£' + esc(d.project_value) : '—'}</div></div>
+            </div>
+            <div class="field full"><div class="field-label">Site Address</div><div class="field-value">${esc(d.project_address)}</div></div>
+            <div class="field full"><div class="field-label">Description of Works</div><div class="field-value">${esc(d.project_description)}</div></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><div class="section-num">5</div><div class="section-title">Scope of Services — RIBA Stages</div></div>
+          <div class="section-body">
+            <ul class="stage-list">
+              ${selectedStages.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('')}
+            </ul>
+            ${d.scope_notes ? '<div class="field full"><div class="field-label">Scope Notes</div><div class="field-value">' + esc(d.scope_notes) + '</div></div>' : ''}
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><div class="section-num">6</div><div class="section-title">Fee and Payment</div></div>
+          <div class="section-body">
+            <div class="field-row">
+              <div class="field"><div class="field-label">Fee Basis</div><div class="field-value">${esc(d.fee_basis)}</div></div>
+              <div class="field"><div class="field-label">Total Fee (excl. VAT)</div><div class="field-value">£${esc(d.fee_total)}</div></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><div class="field-label">VAT</div><div class="field-value">${esc(d.vat_applicable)}</div></div>
+              <div class="field"><div class="field-label">Retention</div><div class="field-value">${esc(d.retention_pct)}%</div></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><div class="field-label">Defects Period</div><div class="field-value">${esc(d.defects_period_months)} months</div></div>
+              <div class="field"><div class="field-label">Payment Terms</div><div class="field-value">${esc(d.payment_terms_days)} days</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><div class="section-num">7</div><div class="section-title">Programme</div></div>
+          <div class="section-body">
+            <div class="field-row">
+              <div class="field"><div class="field-label">Proposed Start</div><div class="field-value">${esc(d.programme_start)}</div></div>
+              <div class="field"><div class="field-label">Planning Submission Target</div><div class="field-value">${esc(d.programme_planning_target) || '—'}</div></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><div class="field-label">Building Regs Target</div><div class="field-value">${esc(d.programme_regs_target) || '—'}</div></div>
+              <div class="field"><div class="field-label">Design Programme</div><div class="field-value">${d.programme_duration_weeks ? esc(d.programme_duration_weeks) + ' weeks' : '—'}</div></div>
+            </div>
+            ${d.programme_notes ? '<div class="field full"><div class="field-label">Notes</div><div class="field-value">' + esc(d.programme_notes) + '</div></div>' : ''}
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><div class="section-num">8</div><div class="section-title">Governing Contract</div></div>
+          <div class="section-body">
+            <div class="field-row">
+              <div class="field"><div class="field-label">Standard Form</div><div class="field-value">${esc(d.governing_contract_form)}</div></div>
+              <div class="field"><div class="field-label">Version</div><div class="field-value">${esc(d.governing_contract_version) || '—'}</div></div>
+            </div>
+            <div class="field full"><div class="field-label">PDF Hash (SHA-256)</div><div class="field-value" style="font-family:monospace;font-size:11px;">${esc(d.governing_contract_pdf_hash) || 'Not yet provided — to be added at FORMA-ACCEPT-001'}</div></div>
+            <div class="field"><div class="field-label">Governing Law</div><div class="field-value">${esc(d.governing_law).replace(/_/g,' ')}</div></div>
+          </div>
+        </div>
+
+        ${(d.special_conditions || d.exclusions) ? `
+        <div class="section">
+          <div class="section-head"><div class="section-num">9</div><div class="section-title">Special Conditions</div></div>
+          <div class="section-body">
+            ${d.special_conditions ? '<div class="field full"><div class="field-label">Special Conditions</div><div class="field-value">' + esc(d.special_conditions) + '</div></div>' : ''}
+            ${d.exclusions ? '<div class="field full"><div class="field-label">Exclusions</div><div class="field-value">' + esc(d.exclusions) + '</div></div>' : ''}
+          </div>
+        </div>` : ''}
+
+      </div>
+
+      <div class="ofsig-block">
+        <div class="ofsig-title">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d18a1f" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          OFSIG — Cryptographic Signature Block
+        </div>
+        <div class="ofsig-grid">
+          <div class="ofsig-row"><div class="ofsig-key">Status</div><div class="ofsig-val ok">✓ SIGNED</div></div>
+          <div class="ofsig-row"><div class="ofsig-key">Fingerprint</div><div class="ofsig-val fp">${fp}</div></div>
+          <div class="ofsig-row"><div class="ofsig-key">Issued</div><div class="ofsig-val">${issued}</div></div>
+          <div class="ofsig-row"><div class="ofsig-key">Algorithm</div><div class="ofsig-val">SHA-256 · Phase 1A (Ed25519 in Phase 2)</div></div>
+          <div class="ofsig-row"><div class="ofsig-key">Hash (SHA-256)</div><div class="ofsig-val">${hash}</div></div>
+          <div class="ofsig-row"><div class="ofsig-key">Schema</div><div class="ofsig-val">LEG-DOC-001 · LEG-DOC-001 · OpenFORMA v1.0</div></div>
+          <div class="ofsig-row"><div class="ofsig-key">Issuer</div><div class="ofsig-val">OpenFORMA · Ark &amp; Aico Labs</div></div>
+          <div class="ofsig-row"><div class="ofsig-key">Blockchain Anchor</div><div class="ofsig-val" style="color:#9ca3af;">Pending (Phase 3)</div></div>
+        </div>
+        <p style="margin:12px 0 0;font-size:9px;color:#9ca3af;line-height:1.6;">
+          Signed at generation. Hash is a fingerprint of the exact data — any edit invalidates it.
+          Full data in <code style="font-size:9px;">script#ofsig-data</code> in page head.
+          Verify using any SHA-256 implementation. Sort the "data" object keys before hashing.
+        </p>
+      </div>
+
+      <div class="page-foot">
+        <div class="page-foot-meta">
+          <div class="pf-line strong">${issued}</div>
+          <div class="pf-line">${fp}</div>
+          <div class="pf-line">OpenFORMA · LEG-DOC-001 · LEG-DOC-001 · CC-BY-4.0</div>
+        </div>
+      </div>
+
+      <div class="doc-footer">
+        <span>LEG-DOC-001 · OpenFORMA v1.0 · Ark &amp; Aico Labs</span>
+        <span class="doc-footer-accent">OCP Protocol · OFSIG Signing Layer</span>
+      </div>
+
+    </div>
+
+    <div class="stage-sidebar">
+      <button class="sidebar-btn signed-state" title="Print" onclick="window.print()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        <span>Print</span>
+      </button>
+    </div>
+
+  </div>
+
+</body>
+</html>`;
+    }
+
+    // ── Trigger browser download of the .forma file ────────────
+    // Creates a Blob from the HTML string and triggers a download.
+    // The filename includes the fingerprint for easy identification.
+    function downloadForma() {
+
+      if (!signedData) return;
+
+      // Build the complete .forma HTML
+      var html = buildFormaHTML();
+
+      // Create a Blob (in-memory file) from the HTML string
+      var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+
+      // Create a temporary download link and click it
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'forma-offer-001-' + signedData.fingerprint.toLowerCase() + '.forma';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Clean up the object URL after a short delay
+      setTimeout(function() {
+        URL.revokeObjectURL(link.href);
+      }, 1000);
+    }
+
+  </script>
+
+</body>
+</html>

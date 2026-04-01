@@ -1,0 +1,1963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIN-DOC-004 — Direct Debit Instruction — OpenFORMA</title>
+  <meta name="description" content="OpenFORMA Direct Debit Instruction. Fillable, validatable, cryptographically signed output." />
+  <meta name="theme-color" content="#0f0e0d" />
+
+  <style>
+
+    /* ============================================================
+       OPENFORMA — FIN-DOC-004
+       Direct Debit Instruction
+       Legacy alias: FORMA-DDI-001 (preserved in record metadata)
+
+       DESIGN DOCTRINE:
+       - Stage: near-black (OpenFORMA brand consistency)
+       - Document: white, official, formal
+       - Accent: amber (OpenFORMA signing colour)
+       - Status: green (SIGNED) / red (INVALID)
+
+       OUTPUT:
+       Signing produces a .forma file — HTML document with
+       embedded JSON data + OFSIG cryptographic envelope.
+       Anyone can open it. Anyone can verify it.
+    ============================================================ */
+
+    :root {
+      --stage:        #0f0e0d;
+      --accent:       #d18a1f;
+      --accent-deep:  #a46812;
+      --brand:        #e8703a;
+      --green:        #22c55e;
+      --red:          #ef4444;
+      --blue:         #3b82f6;
+
+      --page:         #ffffff;
+      --ink:          #111315;
+      --ink-soft:     #374151;
+      --muted:        #6b7280;
+      --line:         #e5e7eb;
+      --line-strong:  #9ca3af;
+      --panel:        #f9fafb;
+      --panel-2:      #f3f4f6;
+
+      --radius:       4px;
+      --shadow:       0 24px 64px rgba(0,0,0,0.5);
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--stage);
+      background-image:
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 44px 44px;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    body { padding: 0 20px 60px; }
+
+    /* ── Stage header ─────────────────────────────────────────── */
+    .stage-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 4px;
+      margin: 0 -20px 28px;
+      padding-left: 24px;
+      padding-right: 24px;
+      background: rgba(15,14,13,0.93);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .stage-brand {
+      font-size: 0.9rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #fff;
+      text-decoration: none;
+    }
+    .stage-brand span { color: var(--accent); }
+
+    .stage-schema {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.35);
+    }
+
+    /* ── Document page ────────────────────────────────────────── */
+    .page {
+      max-width: 794px; /* A4 width at 96dpi */
+      margin: 0 auto;
+      background: var(--page);
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Amber left rail — OpenFORMA identity */
+    .page::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 5px;
+      background: linear-gradient(180deg, var(--accent) 0%, var(--accent-deep) 100%);
+      z-index: 2;
+    }
+
+    /* ── Document header ──────────────────────────────────────── */
+    .doc-header {
+      background: linear-gradient(135deg, #1a1d22 0%, #22272e 100%);
+      color: #f8f8f4;
+      padding: 20px 28px 18px 32px;
+      border-bottom: 3px solid var(--accent);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .doc-title {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .doc-name {
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      margin: 0 0 4px;
+      line-height: 1.1;
+    }
+
+    .doc-sub {
+      font-size: 11px;
+      color: rgba(248,248,244,0.45);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .doc-schema-badge {
+      background: rgba(209,138,31,0.15);
+      border: 1px solid rgba(209,138,31,0.3);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      text-align: right;
+    }
+
+    .doc-schema-badge .schema-id {
+      font-size: 11px;
+      font-weight: 900;
+      color: var(--accent);
+      letter-spacing: 0.06em;
+      display: block;
+    }
+
+    .doc-schema-badge .schema-ver {
+      font-size: 9px;
+      color: rgba(248,248,244,0.35);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* ── OFSIG status strip — below header, above form ───────── */
+    .ofsig-strip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 28px 9px 32px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .ofsig-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--line-strong);
+      flex-shrink: 0;
+    }
+
+    .ofsig-strip.unsigned .ofsig-dot { background: var(--line-strong); }
+    .ofsig-strip.signed   .ofsig-dot { background: var(--green); animation: pulse 2s infinite; }
+    .ofsig-strip.invalid  .ofsig-dot { background: var(--red); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(1.35); }
+    }
+
+    .ofsig-fingerprint {
+      font-family: "Courier New", monospace;
+      color: var(--accent);
+      font-size: 10px;
+    }
+
+    /* ── Form body ────────────────────────────────────────────── */
+    .form-body {
+      padding: 24px 28px 28px 32px;
+      display: grid;
+      gap: 20px;
+    }
+
+    /* ── Form section ─────────────────────────────────────────── */
+    .form-section {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .section-head {
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+      padding: 9px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-num {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .section-title {
+      font-size: 10.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-soft);
+    }
+
+    .section-body {
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    /* ── Field ────────────────────────────────────────────────── */
+    .field-row {
+      display: grid;
+      gap: 10px;
+    }
+
+    .field-row.cols-2 { grid-template-columns: 1fr 1fr; }
+    .field-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+    .field {
+      display: grid;
+      gap: 4px;
+    }
+
+    .field-label {
+      font-size: 9.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .field-label .required {
+      color: var(--accent);
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    .field input,
+    .field select,
+    .field textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--ink);
+      background: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      outline: none;
+    }
+
+    .field input:focus,
+    .field select:focus,
+    .field textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(209,138,31,0.12);
+    }
+
+    .field input.valid   { border-color: var(--green); }
+    .field input.invalid { border-color: var(--red); }
+
+    .field-hint {
+      font-size: 9px;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    .field-error {
+      font-size: 9px;
+      color: var(--red);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      display: none;
+    }
+
+    .field-error.show { display: block; }
+
+    /* ── Sort code — 3 boxes ─────────────────────────────────── */
+    .sortcode-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sortcode-group input {
+      width: 52px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: "Courier New", monospace;
+      letter-spacing: 0.08em;
+    }
+
+    .sortcode-sep {
+      font-weight: 900;
+      color: var(--line-strong);
+      font-size: 16px;
+      line-height: 1;
+      user-select: none;
+    }
+
+    /* ── Radio group — payment type ──────────────────────────── */
+    .radio-group {
+      display: flex;
+      gap: 12px;
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--ink-soft);
+      background: var(--panel);
+      transition: border-color 0.15s, background 0.15s;
+      flex: 1;
+    }
+
+    .radio-option input[type="radio"] { display: none; }
+
+    .radio-option .radio-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--line-strong);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: border-color 0.15s;
+    }
+
+    .radio-option input[type="radio"]:checked ~ .radio-dot {
+      border-color: var(--accent);
+      background: var(--accent);
+    }
+
+    .radio-option:has(input:checked) {
+      border-color: var(--accent);
+      background: rgba(209,138,31,0.05);
+      color: var(--ink);
+    }
+
+    /* ── DDI legal notice ─────────────────────────────────────── */
+    .ddi-notice {
+      background: #fffbf5;
+      border: 1px solid #f0d8a0;
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      font-size: 10.5px;
+      line-height: 1.6;
+      color: var(--ink-soft);
+    }
+
+    .ddi-notice strong { color: var(--ink); }
+
+    /* ── Signature field ──────────────────────────────────────── */
+    .signature-field {
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+    }
+
+    .signature-field input {
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      font-style: italic;
+      font-size: 15px !important;
+      color: var(--ink-soft) !important;
+      background: transparent !important;
+    }
+
+    .signature-field input:focus { box-shadow: none !important; }
+
+    /* ── Submit / Sign button ─────────────────────────────────── */
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 0 28px 28px 32px;
+    }
+
+    .btn-sign {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 28px;
+      background: var(--accent);
+      border: none;
+      border-radius: 999px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+
+    .btn-sign:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-sign:active { transform: translateY(0); }
+    .btn-sign:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    .btn-verify {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 22px;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 999px;
+      color: rgba(255,255,255,0.5);
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .btn-verify:hover { border-color: var(--green); color: var(--green); }
+
+    .sign-status {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.3);
+    }
+
+    .sign-status.signing { color: var(--accent); }
+    .sign-status.done    { color: var(--green); }
+    .sign-status.error   { color: var(--red); }
+
+    /* ── Page footer ──────────────────────────────────────────── */
+    .doc-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 28px 12px 32px;
+      border-top: 1px solid var(--line);
+      background: var(--panel-2);
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .doc-footer-protocol { color: var(--accent-deep); }
+
+    /* ── Verify panel — shown after file drop ─────────────────── */
+    .verify-panel {
+      max-width: 794px;
+      margin: 24px auto 0;
+      background: rgba(255,255,255,0.03);
+      border: 1px dashed rgba(255,255,255,0.1);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      display: none;
+    }
+
+    .verify-panel.show { display: block; }
+
+    .verify-panel h3 {
+      margin: 0 0 14px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.5);
+    }
+
+    .verify-result {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.8);
+    }
+
+    .verify-result .v-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .verify-result.valid   .v-icon { background: rgba(34,197,94,0.2); color: var(--green); }
+    .verify-result.invalid .v-icon { background: rgba(239,68,68,0.2); color: var(--red); }
+
+    .verify-meta {
+      margin-top: 10px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.25);
+      font-family: "Courier New", monospace;
+    }
+
+    /* ── Drop zone ────────────────────────────────────────────── */
+    .drop-zone {
+      border: 1px dashed rgba(255,255,255,0.12);
+      border-radius: var(--radius);
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.25);
+      margin-top: 20px;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(209,138,31,0.04);
+      color: var(--accent);
+    }
+
+    /* ── Stage layout — sidebar + document ───────────────────── */
+    .stage-layout {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    /* ── Stage sidebar ────────────────────────────────────────── */
+    .stage-sidebar {
+      position: sticky;
+      top: 72px;
+      width: 52px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      order: 2;
+    }
+
+    .sidebar-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      color: rgba(255,255,255,0.4);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      font-family: inherit;
+    }
+
+    .sidebar-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(209,138,31,0.08);
+    }
+
+    .sidebar-btn.active-green {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    .sidebar-btn span {
+      font-size: 7px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .sidebar-divider {
+      width: 28px;
+      height: 1px;
+      background: rgba(255,255,255,0.08);
+      margin: 2px 0;
+    }
+
+    .sidebar-status {
+      font-size: 6.5px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.2);
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    .sidebar-status.signed { color: var(--green); }
+
+    /* Keep .page filling the layout, not its own max-width centering */
+    .stage-layout .page {
+      max-width: 794px;
+      flex: 1;
+      order: 1;
+      margin: 0;
+    }
+
+    /* ── Print ────────────────────────────────────────────────── */
+    @media print {
+      html, body { background: #fff !important; padding: 0 !important; }
+      .stage-header, .stage-sidebar, .form-actions, .drop-zone, .verify-panel { display: none !important; }
+      .stage-layout { display: block !important; }
+      .page { box-shadow: none !important; max-width: 100% !important; }
+      body { padding: 0 !important; }
+    }
+
+    /* ── Responsive ───────────────────────────────────────────── */
+    @media (max-width: 860px) {
+      .stage-sidebar { display: none; }
+      .stage-layout { display: block; }
+      .stage-layout .page { max-width: 794px; margin: 0 auto; }
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 0 10px 40px; }
+      .stage-header { margin: 0 -10px 20px; padding: 10px 14px; }
+      .form-body { padding: 16px 14px 16px 18px; }
+      .form-actions { padding: 0 14px 20px 18px; flex-wrap: wrap; }
+      .field-row.cols-2,
+      .field-row.cols-3 { grid-template-columns: 1fr; }
+      .radio-group { flex-direction: column; }
+      .doc-header { grid-template-columns: 1fr; }
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- ── Stage header ──────────────────────────────────────── -->
+  <div class="stage-header">
+    <a class="stage-brand" href="#">Open<span>FORMA</span></a>
+    <span class="stage-schema">FIN-DOC-004 · v1.0 · Direct Debit Instruction</span>
+  </div>
+
+  <!-- ── Stage layout: document + sidebar ─────────────────── -->
+  <div class="stage-layout">
+
+  <!-- ── Document page ─────────────────────────────────────── -->
+  <div class="page" id="forma-page">
+
+    <!-- Document header -->
+    <div class="doc-header">
+      <div>
+        <div class="doc-title">OpenFORMA — Signed Document</div>
+        <h1 class="doc-name">Direct Debit Instruction</h1>
+        <div class="doc-sub">Fillable · Validatable · Cryptographically Signed</div>
+      </div>
+      <div class="doc-schema-badge">
+        <span class="schema-id">FIN-DOC-004</span>
+        <span class="schema-ver">OpenFORMA v1.0</span>
+      </div>
+    </div>
+
+    <!-- OFSIG status strip -->
+    <div class="ofsig-strip unsigned" id="ofsig-strip">
+      <div class="ofsig-dot"></div>
+      <span id="ofsig-status-text">Unsigned — complete and sign the form below</span>
+      <span class="ofsig-fingerprint" id="ofsig-fingerprint"></span>
+    </div>
+
+    <!-- Form body -->
+    <form class="form-body" id="ddi-form" novalidate>
+
+      <!-- ── Section 1: Your Details ─────────────────────────── -->
+      <div class="form-section">
+        <div class="section-head">
+          <div class="section-num">1</div>
+          <div class="section-title">Your Details</div>
+        </div>
+        <div class="section-body">
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label" for="company_name">
+                Company Name <span class="required">*</span>
+              </label>
+              <input type="text" id="company_name" name="company_name"
+                     placeholder="Trading name or registered company name"
+                     autocomplete="organization" />
+              <span class="field-error" id="err-company_name">Required</span>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label" for="site_address">
+                Site / Billing Address <span class="required">*</span>
+              </label>
+              <input type="text" id="site_address" name="site_address"
+                     placeholder="Full address including postcode" />
+              <span class="field-error" id="err-site_address">Required</span>
+            </div>
+          </div>
+
+          <div class="field-row cols-2">
+            <div class="field">
+              <label class="field-label" for="contact_name">
+                Contact Name <span class="required">*</span>
+              </label>
+              <input type="text" id="contact_name" name="contact_name"
+                     placeholder="Full name" autocomplete="name" />
+              <span class="field-error" id="err-contact_name">Required</span>
+            </div>
+            <div class="field">
+              <label class="field-label" for="phone">
+                Phone Number <span class="required">*</span>
+              </label>
+              <input type="tel" id="phone" name="phone"
+                     placeholder="+44 7700 000000" autocomplete="tel" />
+              <span class="field-error" id="err-phone">Required</span>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label" for="contact_email">
+                Email Address
+              </label>
+              <input type="email" id="contact_email" name="contact_email"
+                     placeholder="your@email.com" autocomplete="email" />
+              <span class="field-error" id="err-contact_email">Enter a valid email address</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field-label">
+              Payment Type <span class="required">*</span>
+            </label>
+            <div class="radio-group">
+              <label class="radio-option">
+                <input type="radio" name="payment_type" value="variable" checked />
+                <div class="radio-dot"></div>
+                Variable Direct Debit
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="payment_type" value="fixed" />
+                <div class="radio-dot"></div>
+                Fixed Direct Debit
+              </label>
+            </div>
+          </div>
+
+          <div class="field-row cols-2">
+            <div class="field">
+              <label class="field-label" for="meter_point">
+                Gas Meter Point Number (MPRN)
+              </label>
+              <input type="text" id="meter_point" name="meter_point"
+                     placeholder="10-digit MPRN"
+                     maxlength="10" inputmode="numeric" />
+              <span class="field-hint">10 digits — found on your gas bill</span>
+              <span class="field-error" id="err-meter_point">MPRN must be 10 digits</span>
+            </div>
+            <div class="field">
+              <label class="field-label" for="preferred_payment_date">
+                Preferred Payment Date
+              </label>
+              <select id="preferred_payment_date" name="preferred_payment_date">
+                <option value="">Select date</option>
+                <option value="1">1st of month</option>
+                <option value="5">5th of month</option>
+                <option value="10">10th of month</option>
+                <option value="15">15th of month</option>
+                <option value="20">20th of month</option>
+                <option value="25">25th of month</option>
+                <option value="28">28th of month</option>
+              </select>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── Section 2: Bank Details ─────────────────────────── -->
+      <div class="form-section">
+        <div class="section-head">
+          <div class="section-num">2</div>
+          <div class="section-title">Bank or Building Society Details</div>
+        </div>
+        <div class="section-body">
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label" for="bank_name">
+                Name of Bank or Building Society <span class="required">*</span>
+              </label>
+              <input type="text" id="bank_name" name="bank_name"
+                     placeholder="e.g. Barclays Bank" />
+              <span class="field-error" id="err-bank_name">Required</span>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label" for="account_holder">
+                Name(s) of Account Holder(s) <span class="required">*</span>
+              </label>
+              <input type="text" id="account_holder" name="account_holder"
+                     placeholder="As it appears on your bank statements" />
+              <span class="field-error" id="err-account_holder">Required</span>
+            </div>
+          </div>
+
+          <div class="field-row cols-2">
+            <div class="field">
+              <label class="field-label">
+                Sort Code <span class="required">*</span>
+              </label>
+              <div class="sortcode-group">
+                <input type="text" id="sc1" name="sc1"
+                       maxlength="2" inputmode="numeric"
+                       placeholder="00" aria-label="Sort code part 1" />
+                <span class="sortcode-sep">–</span>
+                <input type="text" id="sc2" name="sc2"
+                       maxlength="2" inputmode="numeric"
+                       placeholder="00" aria-label="Sort code part 2" />
+                <span class="sortcode-sep">–</span>
+                <input type="text" id="sc3" name="sc3"
+                       maxlength="2" inputmode="numeric"
+                       placeholder="00" aria-label="Sort code part 3" />
+              </div>
+              <span class="field-hint">6 digits — on the front of your bank card</span>
+              <span class="field-error" id="err-sortcode">Sort code must be 6 digits (XX-XX-XX)</span>
+            </div>
+            <div class="field">
+              <label class="field-label" for="account_number">
+                Account Number <span class="required">*</span>
+              </label>
+              <input type="text" id="account_number" name="account_number"
+                     maxlength="8" inputmode="numeric"
+                     placeholder="00000000"
+                     style="font-family:'Courier New',monospace;font-size:15px;letter-spacing:0.08em;" />
+              <span class="field-hint">8 digits — on the front of your bank card</span>
+              <span class="field-error" id="err-account_number">Account number must be exactly 8 digits</span>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label" for="bank_address">
+                Bank Branch Address
+              </label>
+              <input type="text" id="bank_address" name="bank_address"
+                     placeholder="Branch address (optional)" />
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── Section 3: Instruction + Signature ──────────────── -->
+      <div class="form-section">
+        <div class="section-head">
+          <div class="section-num">3</div>
+          <div class="section-title">Instruction &amp; Authorisation</div>
+        </div>
+        <div class="section-body">
+
+          <div class="ddi-notice">
+            <strong>Instruction to your Bank or Building Society to pay by Direct Debit.</strong>
+            Please fill in the whole of this form and send it to us. I/We instruct you to pay Direct Debits from the account detailed in this Instruction subject to the safeguards assured by the Direct Debit Guarantee. I/We understand that this Instruction may remain with the originating organisation and, if so, details will be passed electronically to my/our Bank/Building Society.
+          </div>
+
+          <div class="field-row cols-2">
+            <div class="field">
+              <label class="field-label" for="signature_1">
+                Signature <span class="required">*</span>
+              </label>
+              <div class="signature-field">
+                <input type="text" id="signature_1" name="signature_1"
+                       placeholder="Type full name as signature" />
+              </div>
+              <span class="field-error" id="err-signature_1">Signature required</span>
+            </div>
+            <div class="field">
+              <label class="field-label" for="signature_2">
+                Second Signature (if joint account)
+              </label>
+              <div class="signature-field">
+                <input type="text" id="signature_2" name="signature_2"
+                       placeholder="Type full name (if required)" />
+              </div>
+            </div>
+          </div>
+
+          <div class="field-row cols-2">
+            <div class="field">
+              <label class="field-label" for="date_signed">
+                Date <span class="required">*</span>
+              </label>
+              <input type="date" id="date_signed" name="date_signed" />
+              <span class="field-error" id="err-date_signed">Date required</span>
+            </div>
+            <div class="field">
+              <label class="field-label" for="reference">
+                Reference Number
+              </label>
+              <input type="text" id="reference" name="reference"
+                     placeholder="Supplied by service provider" />
+              <span class="field-hint">Leave blank if not provided</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </form>
+
+    <!-- ── Actions ───────────────────────────────────────────── -->
+    <div class="form-actions">
+      <button class="btn-sign" id="btn-sign" onclick="signForm()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        Sign &amp; Generate .forma
+      </button>
+      <span class="sign-status" id="sign-status">Web Crypto · RSASSA-PKCS1-v1_5 · SHA-256</span>
+    </div>
+
+    <!-- ── Document footer ───────────────────────────────────── -->
+    <div class="doc-footer">
+      <span>FIN-DOC-004 · OpenFORMA v1.0 · Ark &amp; Aico Labs</span>
+      <span class="doc-footer-protocol">OCX Protocol · OFSIG Signing Layer</span>
+    </div>
+
+  </div><!-- end .page -->
+
+  <!-- ── Stage sidebar ─────────────────────────────────────── -->
+  <div class="stage-sidebar" id="stage-sidebar">
+
+    <button class="sidebar-btn" title="Print form" onclick="window.print()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <polyline points="6 9 6 2 18 2 18 9"/>
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+        <rect x="6" y="14" width="12" height="8"/>
+      </svg>
+      <span>Print</span>
+    </button>
+
+    <button class="sidebar-btn" title="Sign the form"
+            onclick="document.getElementById('btn-sign').scrollIntoView({behavior:'smooth',block:'center'})">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+      <span>Sign</span>
+    </button>
+
+    <button class="sidebar-btn" id="sb-verify-btn" title="Verify a .forma file"
+            onclick="document.getElementById('verify-panel').classList.add('show');document.getElementById('verify-panel').scrollIntoView({behavior:'smooth'})">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M20 6L9 17l-5-5"/>
+      </svg>
+      <span>Verify</span>
+    </button>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-status" id="sb-status">UN<br>SIGNED</div>
+
+  </div><!-- end .stage-sidebar -->
+
+  </div><!-- end .stage-layout -->
+
+  <!-- ── Verify panel ──────────────────────────────────────── -->
+  <div class="verify-panel" id="verify-panel">
+    <h3>Verify a .forma Document</h3>
+    <div class="drop-zone" id="drop-zone"
+         onclick="document.getElementById('file-input').click()"
+         ondragover="event.preventDefault();this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="handleFileDrop(event)">
+      Drop a .forma file here or tap to select
+    </div>
+    <input type="file" id="file-input" accept=".forma,.html"
+           style="display:none" onchange="handleFileSelect(event)" />
+    <div id="verify-result-area"></div>
+  </div>
+
+  <script>
+
+    // ============================================================
+    // OPENFORMA — FIN-DOC-004
+    // Signing engine + validation + output generator
+    //
+    // WHAT THIS DOES:
+    // 1. Validates all required fields + format rules
+    // 2. Generates an RSA key pair in the browser (Web Crypto API)
+    // 3. Signs the JSON form data with the private key
+    // 4. Produces a .forma file — HTML document with embedded
+    //    signed JSON envelope (OFSIG block)
+    // 5. Anyone with the .forma file can verify the signature
+    //    using the embedded public key
+    //
+    // KEY PAIR NOTE:
+    // This prototype generates an ephemeral key pair per signing.
+    // Production: credi.build / OpenFORMA authority holds the
+    // private key server-side. Public key published at a known URL.
+    // ============================================================
+
+    // ── Set today's date as default ───────────────────────────
+    document.getElementById('date_signed').value =
+      new Date().toISOString().split('T')[0];
+
+    // ── Auto-advance sort code boxes ──────────────────────────
+    // Typing 2 digits in sc1 jumps focus to sc2, etc.
+    ['sc1','sc2','sc3'].forEach(function(id, i, arr) {
+      var el = document.getElementById(id);
+      el.addEventListener('input', function() {
+        // Digits only
+        this.value = this.value.replace(/\D/g, '');
+        if (this.value.length === 2 && i < arr.length - 1) {
+          document.getElementById(arr[i+1]).focus();
+        }
+      });
+    });
+
+    // ── Account number — digits only ──────────────────────────
+    document.getElementById('account_number').addEventListener('input', function() {
+      this.value = this.value.replace(/\D/g, '');
+    });
+
+    // ── MPRN — digits only ────────────────────────────────────
+    document.getElementById('meter_point').addEventListener('input', function() {
+      this.value = this.value.replace(/\D/g, '');
+    });
+
+    // ============================================================
+    // VALIDATION
+    // Each rule returns null (pass) or an error string (fail).
+    // ============================================================
+
+    var rules = {
+      company_name:   function(v) { return v.trim() ? null : 'Required'; },
+      site_address:   function(v) { return v.trim() ? null : 'Required'; },
+      contact_name:   function(v) { return v.trim() ? null : 'Required'; },
+      phone:          function(v) { return v.trim() ? null : 'Required'; },
+      contact_email:  function(v) {
+        if (!v.trim()) return null; // optional
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? null : 'Enter a valid email address';
+      },
+      meter_point:    function(v) {
+        if (!v.trim()) return null; // optional
+        return /^\d{10}$/.test(v) ? null : 'MPRN must be 10 digits';
+      },
+      bank_name:      function(v) { return v.trim() ? null : 'Required'; },
+      account_holder: function(v) { return v.trim() ? null : 'Required'; },
+      sortcode:       function() {
+        var s = getSortCode();
+        return /^\d{2}-\d{2}-\d{2}$/.test(s) ? null : 'Sort code must be 6 digits (XX-XX-XX)';
+      },
+      account_number: function(v) {
+        return /^\d{8}$/.test(v) ? null : 'Account number must be exactly 8 digits';
+      },
+      signature_1:    function(v) { return v.trim() ? null : 'Signature required'; },
+      date_signed:    function(v) { return v ? null : 'Date required'; }
+    };
+
+    function getSortCode() {
+      return document.getElementById('sc1').value + '-' +
+             document.getElementById('sc2').value + '-' +
+             document.getElementById('sc3').value;
+    }
+
+    function validateAll() {
+      var valid = true;
+      Object.keys(rules).forEach(function(field) {
+        var el = document.getElementById(field);
+        var val = el ? el.value : '';
+        var err = rules[field](val);
+        var errEl = document.getElementById('err-' + field);
+        if (errEl) {
+          if (err) {
+            errEl.textContent = err;
+            errEl.classList.add('show');
+            if (el) el.classList.add('invalid');
+            valid = false;
+          } else {
+            errEl.classList.remove('show');
+            if (el) { el.classList.remove('invalid'); el.classList.add('valid'); }
+          }
+        }
+      });
+      return valid;
+    }
+
+    // ============================================================
+    // FORM DATA COLLECTION
+    // Builds the structured JSON object from all form fields.
+    // This is the canonical data that gets hashed and signed.
+    // ============================================================
+
+    function collectFormData() {
+      function val(id) {
+        var el = document.getElementById(id);
+        return el ? el.value.trim() : '';
+      }
+      var paymentType = document.querySelector('input[name="payment_type"]:checked');
+      return {
+        schema:    'FIN-DOC-004',
+        version:   '1.0',
+        // Section 1 — Your Details
+        company_name:           val('company_name'),
+        site_address:           val('site_address'),
+        contact_name:           val('contact_name'),
+        phone:                  val('phone'),
+        contact_email:          val('contact_email'),
+        payment_type:           paymentType ? paymentType.value : '',
+        meter_point:            val('meter_point'),
+        preferred_payment_date: val('preferred_payment_date'),
+        // Section 2 — Bank Details
+        bank_name:              val('bank_name'),
+        account_holder:         val('account_holder'),
+        sort_code:              getSortCode(),
+        account_number:         val('account_number'),
+        bank_address:           val('bank_address'),
+        // Section 3 — Instruction
+        signature_1:            val('signature_1'),
+        signature_2:            val('signature_2'),
+        date_signed:            val('date_signed'),
+        reference:              val('reference')
+      };
+    }
+
+    // ============================================================
+    // OFSIG SIGNING ENGINE
+    // Uses Web Crypto API — built into all modern browsers.
+    // No external library. No server call. Fully offline-capable.
+    //
+    // Algorithm: RSASSA-PKCS1-v1_5 with SHA-256
+    // Key size: 2048-bit RSA
+    //
+    // Output: signed OFSIG envelope containing:
+    //   - hash:       SHA-256 of the JSON data string
+    //   - signature:  RSA signature (base64)
+    //   - public_key: exported SPKI public key (base64)
+    //                 embedded so anyone can verify
+    //   - fingerprint: human-readable short ID
+    //   - issued:     ISO timestamp
+    //   - status:     SIGNED
+    // ============================================================
+
+    async function ofsigSign(dataObj) {
+
+      var dataString = JSON.stringify(dataObj, null, 2);
+      var encoder    = new TextEncoder();
+      var dataBuffer = encoder.encode(dataString);
+
+      // Step 1 — SHA-256 hash of the data
+      var hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+      var hashArray  = Array.from(new Uint8Array(hashBuffer));
+      var hashHex    = hashArray.map(function(b) {
+        return b.toString(16).padStart(2, '0');
+      }).join('');
+
+      // Step 2 — Generate RSA key pair
+      var keyPair = await crypto.subtle.generateKey(
+        {
+          name:           'RSASSA-PKCS1-v1_5',
+          modulusLength:  2048,
+          publicExponent: new Uint8Array([1, 0, 1]),
+          hash:           'SHA-256'
+        },
+        true,       // extractable — so we can export the public key
+        ['sign', 'verify']
+      );
+
+      // Step 3 — Sign the data
+      var signature       = await crypto.subtle.sign(
+        'RSASSA-PKCS1-v1_5',
+        keyPair.privateKey,
+        dataBuffer
+      );
+      var signatureB64    = btoa(String.fromCharCode.apply(null, new Uint8Array(signature)));
+
+      // Step 4 — Export public key (SPKI format, base64)
+      // This goes into the .forma file so anyone can verify without
+      // needing access to any server or authority.
+      var publicKeyBuffer = await crypto.subtle.exportKey('spki', keyPair.publicKey);
+      var publicKeyB64    = btoa(String.fromCharCode.apply(null, new Uint8Array(publicKeyBuffer)));
+
+      // Step 5 — Build OFSIG envelope
+      return {
+        algorithm:   'RSASSA-PKCS1-v1_5+SHA-256',
+        hash:        hashHex,
+        hash_short:  hashHex.substring(0, 16),
+        signature:   signatureB64,
+        public_key:  publicKeyB64,
+        fingerprint: 'OFSIG-FIN-DOC-004-' + hashHex.substring(0, 8).toUpperCase(),
+        issued:      new Date().toISOString(),
+        issuer:      'OpenFORMA / Ark & Aico Labs',
+        status:      'SIGNED'
+      };
+    }
+
+    // ============================================================
+    // YAML SERIALIZER
+    // Produces a machine-readable YAML mirror of the OpenFORMA
+    // envelope. Handles flat objects only — no nesting of arrays.
+    // Strings with YAML special chars are double-quoted.
+    //
+    // Output goes into <script type="application/openforma+yaml">
+    // alongside the JSON block. Do not use a library — keep the
+    // .forma file dependency-free.
+    // ============================================================
+
+    function yamlValue(v) {
+      // Null / empty
+      if (v === null || v === undefined || v === '') return '~';
+      // Booleans and numbers pass through unchanged
+      if (typeof v === 'boolean' || typeof v === 'number') return String(v);
+      var s = String(v);
+      // Strings that could confuse YAML parsers get double-quoted
+      var needsQuotes = /[:#{}\[\],&*?|<>=!%@`\n\r"'\\]/.test(s) ||
+                        s.trim() !== s ||
+                        /^(true|false|null|~|\d.*)$/i.test(s);
+      if (needsQuotes) {
+        return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"';
+      }
+      return s;
+    }
+
+    function buildFormaYaml(formData, ofsig) {
+      // Flat object serialiser — one key: value per line
+      var dataLines = Object.keys(formData).map(function(k) {
+        return '  ' + k + ': ' + yamlValue(formData[k]);
+      }).join('\n');
+
+      return [
+        'openforma: "1.0"',
+        'schema: FIN-DOC-004',
+        'generated: ' + yamlValue(ofsig.issued),
+        '',
+        'data:',
+        dataLines,
+        '',
+        'ofsig:',
+        '  status: '      + yamlValue(ofsig.status),
+        '  algorithm: '   + yamlValue(ofsig.algorithm),
+        '  fingerprint: ' + yamlValue(ofsig.fingerprint),
+        '  hash: '        + yamlValue(ofsig.hash),
+        '  hash_short: '  + yamlValue(ofsig.hash_short),
+        '  issued: '      + yamlValue(ofsig.issued),
+        '  issuer: '      + yamlValue(ofsig.issuer),
+        '  # signature and public_key are in the JSON block only'
+      ].join('\n');
+    }
+
+    // ============================================================
+    // OUTPUT GENERATOR
+    // Builds the .forma HTML file — a self-contained signed document.
+    // Full OpenFORMA chrome: sticky header, sidebar, page-foot QR.
+    // Machine-readable blocks: JSON (full) + YAML (human-legible).
+    // Anyone can open it in a browser. Anyone can verify it.
+    // ============================================================
+
+    function generateFormaHTML(formData, ofsig) {
+
+      var issued = new Date(ofsig.issued).toLocaleDateString('en-GB', {
+        day: '2-digit', month: 'long', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+
+      // Mask account number for display — show last 4 only
+      var maskedAccount = '••••' + formData.account_number.slice(-4);
+      var maskedSort    = formData.sort_code;
+
+      // Build machine-readable blocks
+      var jsonBlock = JSON.stringify({ openforma: '1.0', data: formData, ofsig: ofsig }, null, 2);
+      var yamlBlock = buildFormaYaml(formData, ofsig);
+
+      // QR encodes the fingerprint URI — scannable for out-of-band lookup
+      var qrUri = 'openforma://verify/' + ofsig.fingerprint;
+
+      // Conditional second signature
+      var sig2Row = formData.signature_2
+        ? '<div class="field"><div class="label">Second Signature</div><div class="value sig">' + formData.signature_2 + '</div></div>'
+        : '<div></div>';
+
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIN-DOC-004 — ${formData.company_name} — SIGNED</title>
+  <meta name="openforma-schema"      content="FIN-DOC-004" />
+  <meta name="openforma-fingerprint" content="${ofsig.fingerprint}" />
+  <meta name="openforma-issued"      content="${ofsig.issued}" />
+  <meta name="openforma-status"      content="SIGNED" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+
+  <!-- ══════════════════════════════════════════════════════════
+       OFSIG SIGNED DATA BLOCK — JSON (canonical)
+       Machine-readable. Do not edit — editing breaks the signature.
+       Verify using any RSASSA-PKCS1-v1_5 implementation + embedded public key.
+  ══════════════════════════════════════════════════════════ -->
+  <script type="application/openforma+json" id="ofsig-data">
+${jsonBlock}
+  <\/script>
+
+  <!-- ══════════════════════════════════════════════════════════
+       OFSIG SIGNED DATA BLOCK — YAML (machine-readable mirror)
+       Human-legible. Mirrors the JSON block above.
+       Signature + public_key are in the JSON block only.
+  ══════════════════════════════════════════════════════════ -->
+  <script type="application/openforma+yaml" id="ofsig-yaml">
+${yamlBlock}
+  <\/script>
+
+  <style>
+    /* ── OpenFORMA Chrome — FIN-DOC-004 signed output ───────── */
+    :root {
+      --stage: #0f0e0d; --accent: #d18a1f; --accent-deep: #a46812;
+      --green: #22c55e; --red: #ef4444;
+      --page: #ffffff; --ink: #111315; --ink-soft: #374151;
+      --muted: #6b7280; --line: #e5e7eb; --panel: #f9fafb; --panel-2: #f3f4f6;
+      --radius: 4px; --shadow: 0 24px 64px rgba(0,0,0,0.5);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--stage);
+      background-image:
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 44px 44px;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      color: var(--ink); min-height: 100vh;
+    }
+    body { padding: 0 20px 60px; }
+
+    /* ── Sticky header ──────────────────────────────────────────── */
+    .stage-header {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 24px; margin: 0 -20px 28px;
+      background: rgba(15,14,13,0.93);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .stage-brand { font-size: 0.9rem; font-weight: 800; letter-spacing: -0.02em; color: #fff; text-decoration: none; }
+    .stage-brand span { color: var(--accent); }
+    .stage-doc-id { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.35); }
+    .stage-signed-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.25);
+      border-radius: 999px; padding: 4px 10px;
+      font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green);
+    }
+
+    /* ── Stage layout ───────────────────────────────────────────── */
+    .stage-layout { display: flex; gap: 16px; align-items: flex-start; max-width: 920px; margin: 0 auto; }
+
+    /* ── Sidebar ─────────────────────────────────────────────────── */
+    .stage-sidebar {
+      position: sticky; top: 72px; width: 52px; flex-shrink: 0;
+      display: flex; flex-direction: column; align-items: center; gap: 8px; order: 2;
+    }
+    .sidebar-btn {
+      width: 44px; height: 44px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04);
+      color: rgba(255,255,255,0.4); cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+      transition: border-color 0.15s, color 0.15s, background 0.15s; font-family: inherit;
+    }
+    .sidebar-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(209,138,31,0.08); }
+    .sidebar-btn.verified { border-color: var(--green); color: var(--green); }
+    .sidebar-btn.tampered { border-color: var(--red); color: var(--red); }
+    .sidebar-btn span { font-size: 7px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+    .sidebar-divider { width: 28px; height: 1px; background: rgba(255,255,255,0.08); margin: 2px 0; }
+    .sidebar-qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .sidebar-qr-label { font-size: 6.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.2); }
+    #sidebar-qr canvas, #sidebar-qr img { width: 44px !important; height: 44px !important; border-radius: 4px; }
+
+    /* ── Document page ──────────────────────────────────────────── */
+    .page { flex: 1; max-width: 794px; order: 1; background: var(--page); box-shadow: var(--shadow); position: relative; overflow: hidden; }
+    .page::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: linear-gradient(180deg, var(--accent) 0%, var(--accent-deep) 100%); z-index: 2; }
+
+    /* ── Document header ────────────────────────────────────────── */
+    .doc-header { background: linear-gradient(135deg, #1a1d22 0%, #22272e 100%); color: #f8f8f4; padding: 20px 28px 18px 32px; border-bottom: 3px solid var(--accent); }
+    .doc-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent); margin-bottom: 4px; }
+    .doc-name { font-size: 20px; font-weight: 900; margin: 0 0 4px; }
+    .doc-meta { font-size: 10px; color: rgba(248,248,244,0.4); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+    .signed-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.3); border-radius: 999px; padding: 5px 12px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); margin-top: 10px; }
+
+    /* ── Document body ──────────────────────────────────────────── */
+    .body { padding: 24px 28px 24px 32px; display: grid; gap: 18px; }
+    .section { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    .section-head { background: var(--panel-2); border-bottom: 1px solid var(--line); padding: 8px 14px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-soft); }
+    .section-body { padding: 14px; display: grid; gap: 10px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .field { display: grid; gap: 2px; }
+    .label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    .value { font-size: 12.5px; font-weight: 600; color: var(--ink); padding: 6px 0; border-bottom: 1px solid var(--panel-2); }
+    .value.mono { font-family: "Courier New", monospace; font-size: 14px; letter-spacing: 0.06em; }
+    .value.sig { font-style: italic; font-size: 15px; }
+
+    /* ── OFSIG block ────────────────────────────────────────────── */
+    .ofsig-block { margin: 0 28px 0 32px; background: #fffbf0; border: 1px solid #f0d8a0; border-radius: var(--radius); padding: 16px 18px; }
+    .ofsig-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent-deep); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .ofsig-grid { display: grid; gap: 7px; }
+    .ofsig-row { display: grid; grid-template-columns: 120px 1fr; gap: 10px; font-size: 9.5px; align-items: start; }
+    .ofsig-key { font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    .ofsig-val { font-family: "Courier New", monospace; color: var(--ink); word-break: break-all; font-size: 9px; }
+    .ofsig-val.fp { font-size: 11px; font-weight: 800; color: var(--accent); font-family: inherit; letter-spacing: 0.04em; }
+    .ofsig-val.ok { color: var(--green); font-weight: 800; font-family: inherit; font-size: 11px; }
+
+    /* ── Inline verify result ────────────────────────────────────── */
+    .verify-result { display: none; margin: 12px 28px 0 32px; }
+    .verify-result.show { display: block; }
+    .v-box { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: var(--radius); font-size: 11px; font-weight: 700; }
+    .v-box.valid { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.25); color: #166534; }
+    .v-box.invalid { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); color: #991b1b; }
+    .v-icon { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+    .v-box.valid .v-icon { background: rgba(34,197,94,0.15); }
+    .v-box.invalid .v-icon { background: rgba(239,68,68,0.15); }
+    .v-meta { margin-top: 5px; font-size: 8.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.65; font-family: "Courier New", monospace; }
+
+    /* ── Page foot ──────────────────────────────────────────────── */
+    .page-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 20px 10px 32px; margin-top: 20px;
+      background: linear-gradient(135deg, #f3f4f1 0%, #eceee9 100%);
+      border-top: 1px solid var(--line);
+    }
+    .page-foot-meta { display: grid; gap: 2px; }
+    .page-foot-line { font-size: 8px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+    .page-foot-line.strong { color: var(--ink-soft); font-size: 9px; }
+    #print-qr canvas, #print-qr img { width: 52px !important; height: 52px !important; display: block; }
+
+    /* ── Doc footer ─────────────────────────────────────────────── */
+    .doc-footer { display: flex; justify-content: space-between; align-items: center; padding: 8px 28px 10px 32px; border-top: 1px solid var(--line); background: var(--panel-2); font-size: 8px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+    .doc-footer-accent { color: var(--accent-deep); }
+
+    /* ── Print ──────────────────────────────────────────────────── */
+    @media print {
+      html, body { background: #fff !important; padding: 0 !important; }
+      .stage-header, .stage-sidebar, .verify-result { display: none !important; }
+      .stage-layout { display: block !important; }
+      .page { box-shadow: none !important; max-width: 100% !important; }
+      body { padding: 0 !important; }
+    }
+
+    /* ── Responsive ─────────────────────────────────────────────── */
+    @media (max-width: 860px) {
+      .stage-sidebar { display: none; }
+      .stage-layout { display: block; }
+      .page { max-width: 794px; margin: 0 auto; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Sticky header ──────────────────────────────────────── -->
+  <div class="stage-header">
+    <span class="stage-brand">Open<span>FORMA</span></span>
+    <span class="stage-doc-id">FIN-DOC-004 · ${formData.company_name}</span>
+    <span class="stage-signed-badge">
+      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+      OFSIG Signed
+    </span>
+  </div>
+
+  <!-- ── Stage layout ───────────────────────────────────────── -->
+  <div class="stage-layout">
+
+    <!-- Document -->
+    <div class="page">
+
+      <div class="doc-header">
+        <div class="doc-title">OpenFORMA — Signed Document</div>
+        <div class="doc-name">Direct Debit Instruction</div>
+        <div class="doc-meta">FIN-DOC-004 · v1.0 · ${formData.company_name}</div>
+        <div class="signed-badge">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+          OFSIG Signed · Tamper-Evident
+        </div>
+      </div>
+
+      <div class="body">
+        <div class="section">
+          <div class="section-head">1 — Your Details</div>
+          <div class="section-body">
+            <div class="field"><div class="label">Company Name</div><div class="value">${formData.company_name}</div></div>
+            <div class="field"><div class="label">Site / Billing Address</div><div class="value">${formData.site_address}</div></div>
+            <div class="row">
+              <div class="field"><div class="label">Contact Name</div><div class="value">${formData.contact_name}</div></div>
+              <div class="field"><div class="label">Phone</div><div class="value">${formData.phone}</div></div>
+            </div>
+            <div class="row">
+              <div class="field"><div class="label">Email</div><div class="value">${formData.contact_email || '—'}</div></div>
+              <div class="field"><div class="label">Payment Type</div><div class="value">${formData.payment_type === 'variable' ? 'Variable Direct Debit' : 'Fixed Direct Debit'}</div></div>
+            </div>
+            <div class="row">
+              <div class="field"><div class="label">Gas MPRN</div><div class="value mono">${formData.meter_point || '—'}</div></div>
+              <div class="field"><div class="label">Preferred Payment Date</div><div class="value">${formData.preferred_payment_date ? formData.preferred_payment_date + (formData.preferred_payment_date === '1' ? 'st' : 'th') + ' of month' : '—'}</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">2 — Bank Details</div>
+          <div class="section-body">
+            <div class="field"><div class="label">Bank or Building Society</div><div class="value">${formData.bank_name}</div></div>
+            <div class="field"><div class="label">Account Holder(s)</div><div class="value">${formData.account_holder}</div></div>
+            <div class="row">
+              <div class="field"><div class="label">Sort Code</div><div class="value mono">${maskedSort}</div></div>
+              <div class="field"><div class="label">Account Number</div><div class="value mono">${maskedAccount}</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">3 — Authorisation</div>
+          <div class="section-body">
+            <div class="row">
+              <div class="field"><div class="label">Signature</div><div class="value sig">${formData.signature_1}</div></div>
+              ${sig2Row}
+            </div>
+            <div class="row">
+              <div class="field"><div class="label">Date Signed</div><div class="value">${formData.date_signed}</div></div>
+              <div class="field"><div class="label">Reference</div><div class="value">${formData.reference || '—'}</div></div>
+            </div>
+          </div>
+        </div>
+      </div><!-- end .body -->
+
+      <!-- OFSIG block -->
+      <div class="ofsig-block">
+        <div class="ofsig-title">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d18a1f" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          OFSIG — Cryptographic Signature Block
+        </div>
+        <div class="ofsig-grid">
+          <div class="ofsig-row"><div class="ofsig-key">Status</div><div class="ofsig-val ok">✓ SIGNED</div></div>
+          <div class="ofsig-row"><div class="ofsig-key">Fingerprint</div><div class="ofsig-val fp">${ofsig.fingerprint}</div></div>
+          <div class="ofsig-row"><div class="ofsig-key">Issued</div><div class="ofsig-val">${issued}</div></div>
+          <div class="ofsig-row"><div class="ofsig-key">Algorithm</div><div class="ofsig-val">${ofsig.algorithm}</div></div>
+          <div class="ofsig-row"><div class="ofsig-key">Hash (SHA-256)</div><div class="ofsig-val">${ofsig.hash}</div></div>
+          <div class="ofsig-row"><div class="ofsig-key">Issuer</div><div class="ofsig-val">${ofsig.issuer}</div></div>
+        </div>
+        <p style="margin:12px 0 0;font-size:9px;color:#9ca3af;line-height:1.6;">
+          Signed at submission. Hash is a fingerprint of the exact data — any edit changes it.
+          Full signature + public key in <code style="font-size:9px;">script#ofsig-data</code>.
+          YAML mirror in <code style="font-size:9px;">script#ofsig-yaml</code>.
+          Verify using any RSASSA-PKCS1-v1_5 implementation.
+        </p>
+      </div>
+
+      <!-- Inline verify result — toggled by sidebar Verify button -->
+      <div class="verify-result" id="verify-result"></div>
+
+      <!-- Page foot — print-native: issued, fingerprint, QR -->
+      <div class="page-foot">
+        <div class="page-foot-meta">
+          <div class="page-foot-line strong">${issued}</div>
+          <div class="page-foot-line">${ofsig.fingerprint}</div>
+          <div class="page-foot-line">OpenFORMA · FIN-DOC-004 · OFSIG v1.0 · CC-BY-4.0</div>
+        </div>
+        <div id="print-qr"></div>
+      </div>
+
+      <div class="doc-footer">
+        <span>FIN-DOC-004 · OpenFORMA v1.0 · Ark &amp; Aico Labs</span>
+        <span class="doc-footer-accent">OCX Protocol · OFSIG Signing Layer</span>
+      </div>
+
+    </div><!-- end .page -->
+
+    <!-- Sidebar -->
+    <div class="stage-sidebar">
+      <button class="sidebar-btn" title="Print" onclick="window.print()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <polyline points="6 9 6 2 18 2 18 9"/>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+          <rect x="6" y="14" width="12" height="8"/>
+        </svg>
+        <span>Print</span>
+      </button>
+      <button class="sidebar-btn" id="sb-verify" title="Verify signature" onclick="runVerify()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <span>Verify</span>
+      </button>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-qr-wrap">
+        <div id="sidebar-qr"></div>
+        <div class="sidebar-qr-label">Scan</div>
+      </div>
+    </div><!-- end .stage-sidebar -->
+
+  </div><!-- end .stage-layout -->
+
+  <script>
+    // ── QR: render both page-foot and sidebar QR ──────────────
+    // QR encodes the OFSIG fingerprint URI for out-of-band lookup.
+    var qrUri = ${JSON.stringify(qrUri)};
+    if (window.QRCode) {
+      // Page foot — black-on-white, print-native
+      new QRCode(document.getElementById('print-qr'), {
+        text: qrUri, width: 52, height: 52,
+        colorDark: '#111315', colorLight: '#eceee9',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+      // Sidebar — light-on-dark
+      new QRCode(document.getElementById('sidebar-qr'), {
+        text: qrUri, width: 44, height: 44,
+        colorDark: '#e8e8e4', colorLight: 'rgba(0,0,0,0)',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }
+
+    // ── Inline signature verification ──────────────────────────
+    // Reads the embedded JSON block, re-hashes and re-verifies.
+    // Result cached — subsequent clicks toggle visibility.
+    var _verified = null;
+
+    async function runVerify() {
+      var result = document.getElementById('verify-result');
+      var btn    = document.getElementById('sb-verify');
+
+      // Toggle off if already verified
+      if (_verified !== null) {
+        result.classList.toggle('show');
+        return;
+      }
+
+      btn.style.opacity = '0.4';
+
+      try {
+        var el       = document.getElementById('ofsig-data');
+        var envelope = JSON.parse(el.textContent.trim());
+        var fData    = envelope.data;
+        var ofsig    = envelope.ofsig;
+
+        // Re-hash the data object
+        var encoder    = new TextEncoder();
+        var dataString = JSON.stringify(fData, null, 2);
+        var dataBuffer = encoder.encode(dataString);
+        var hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+        var reHash = Array.from(new Uint8Array(hashBuffer))
+          .map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+        var hashMatch = reHash === ofsig.hash;
+
+        // Re-verify RSA signature
+        var pkBuffer = Uint8Array.from(atob(ofsig.public_key), function(c) { return c.charCodeAt(0); });
+        var publicKey = await crypto.subtle.importKey(
+          'spki', pkBuffer, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']
+        );
+        var sigBuffer = Uint8Array.from(atob(ofsig.signature), function(c) { return c.charCodeAt(0); });
+        var sigValid  = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', publicKey, sigBuffer, dataBuffer);
+
+        _verified = hashMatch && sigValid;
+        var cls   = _verified ? 'valid' : 'invalid';
+        var icon  = _verified ? '✓' : '✗';
+        var msg   = _verified
+          ? 'Document is valid and unmodified'
+          : 'VERIFICATION FAILED — document may have been tampered with';
+
+        result.innerHTML =
+          '<div class="v-box ' + cls + '">' +
+            '<div class="v-icon">' + icon + '</div>' +
+            '<div><div>' + msg + '</div>' +
+              '<div class="v-meta">Hash: ' + (hashMatch ? 'MATCH' : 'FAIL') +
+              ' · Sig: ' + (sigValid ? 'VALID' : 'INVALID') +
+              ' · ' + ofsig.fingerprint + '</div>' +
+            '</div>' +
+          '</div>';
+        result.classList.add('show');
+
+        btn.style.opacity = '';
+        btn.className = 'sidebar-btn ' + (_verified ? 'verified' : 'tampered');
+
+      } catch (err) {
+        result.innerHTML = '<div class="v-box invalid"><div class="v-icon">✗</div><div>Error: ' + err.message + '</div></div>';
+        result.classList.add('show');
+        btn.style.opacity = '';
+      }
+    }
+  <\/script>
+
+</body>
+</html>`;
+    }
+
+    // ============================================================
+    // SIGN FORM — main action
+    // Validates → collects → signs → generates .forma → downloads
+    // ============================================================
+
+    async function signForm() {
+
+      // Step 1 — Validate
+      if (!validateAll()) {
+        setStatus('Fix the errors above before signing', 'error');
+        return;
+      }
+
+      var btn = document.getElementById('btn-sign');
+      btn.disabled = true;
+      setStatus('Generating key pair…', 'signing');
+
+      try {
+
+        // Step 2 — Collect
+        var formData = collectFormData();
+
+        setStatus('Signing with RSASSA-PKCS1-v1_5…', 'signing');
+
+        // Step 3 — Sign
+        var ofsig = await ofsigSign(formData);
+
+        // Step 4 — Update OFSIG strip
+        var strip = document.getElementById('ofsig-strip');
+        strip.classList.remove('unsigned');
+        strip.classList.add('signed');
+        document.getElementById('ofsig-status-text').textContent = 'OFSIG Signed — tamper-evident';
+        document.getElementById('ofsig-fingerprint').textContent = ofsig.fingerprint;
+
+        setStatus('Generating .forma file…', 'signing');
+
+        // Step 5 — Generate output file
+        var html = generateFormaHTML(formData, ofsig);
+        var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        var url  = URL.createObjectURL(blob);
+        var a    = document.createElement('a');
+        a.href     = url;
+        a.download = 'ddi-' + formData.company_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '.forma';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        setStatus('✓ Signed · ' + ofsig.fingerprint, 'done');
+        btn.disabled = false;
+
+        // Update sidebar status indicator
+        var sbStatus = document.getElementById('sb-status');
+        sbStatus.textContent = 'SIGNED';
+        sbStatus.className = 'sidebar-status signed';
+        document.getElementById('sb-verify-btn').classList.add('active-green');
+
+        // Show verify panel
+        document.getElementById('verify-panel').classList.add('show');
+
+      } catch (err) {
+        setStatus('Signing failed: ' + err.message, 'error');
+        btn.disabled = false;
+      }
+    }
+
+    function setStatus(msg, state) {
+      var el = document.getElementById('sign-status');
+      el.textContent = msg;
+      el.className = 'sign-status ' + (state || '');
+    }
+
+    // ============================================================
+    // VERIFICATION ENGINE
+    // Reads a .forma file, extracts the OFSIG block,
+    // re-hashes the data, and verifies the RSA signature.
+    // ============================================================
+
+    async function verifyForma(htmlContent) {
+
+      var area = document.getElementById('verify-result-area');
+
+      try {
+        // Extract the embedded JSON from the script tag
+        var match = htmlContent.match(
+          /<script[^>]*type="application\/openforma\+json"[^>]*>([\s\S]*?)<\/script>/
+        );
+        if (!match) throw new Error('No OFSIG data block found in this file');
+
+        var envelope = JSON.parse(match[1].trim());
+        var formData = envelope.data;
+        var ofsig    = envelope.ofsig;
+
+        // Re-hash the data to check integrity
+        var encoder    = new TextEncoder();
+        var dataString = JSON.stringify(formData, null, 2);
+        var dataBuffer = encoder.encode(dataString);
+        var hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+        var hashArray  = Array.from(new Uint8Array(hashBuffer));
+        var reHash     = hashArray.map(function(b) {
+          return b.toString(16).padStart(2,'0');
+        }).join('');
+
+        var hashMatch = reHash === ofsig.hash;
+
+        // Verify RSA signature
+        var publicKeyBuffer = Uint8Array.from(atob(ofsig.public_key), function(c) {
+          return c.charCodeAt(0);
+        });
+        var publicKey = await crypto.subtle.importKey(
+          'spki',
+          publicKeyBuffer,
+          { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+          false,
+          ['verify']
+        );
+        var signatureBuffer = Uint8Array.from(atob(ofsig.signature), function(c) {
+          return c.charCodeAt(0);
+        });
+        var sigValid = await crypto.subtle.verify(
+          'RSASSA-PKCS1-v1_5',
+          publicKey,
+          signatureBuffer,
+          dataBuffer
+        );
+
+        var allValid = hashMatch && sigValid;
+
+        area.innerHTML =
+          '<div class="verify-result ' + (allValid ? 'valid' : 'invalid') + '">' +
+            '<div class="v-icon">' + (allValid ? '✓' : '✗') + '</div>' +
+            '<div>' +
+              '<strong>' + (allValid ? 'Document is valid and unmodified' : 'VERIFICATION FAILED — document may have been tampered with') + '</strong>' +
+              '<div class="verify-meta">' +
+                'Schema: ' + (envelope.openforma || '—') + ' · ' +
+                ofsig.fingerprint + '<br>' +
+                'Hash match: ' + (hashMatch ? 'PASS' : 'FAIL') + ' · ' +
+                'Signature: ' + (sigValid ? 'VALID' : 'INVALID') + '<br>' +
+                'Issued: ' + ofsig.issued +
+              '</div>' +
+            '</div>' +
+          '</div>';
+
+      } catch (err) {
+        area.innerHTML =
+          '<div class="verify-result invalid">' +
+            '<div class="v-icon">✗</div>' +
+            '<div><strong>Could not verify: ' + err.message + '</strong></div>' +
+          '</div>';
+      }
+    }
+
+    function handleFileDrop(e) {
+      e.preventDefault();
+      document.getElementById('drop-zone').classList.remove('drag-over');
+      var file = e.dataTransfer.files[0];
+      if (file) readAndVerify(file);
+    }
+
+    function handleFileSelect(e) {
+      var file = e.target.files[0];
+      if (file) readAndVerify(file);
+    }
+
+    function readAndVerify(file) {
+      var reader = new FileReader();
+      reader.onload = function(e) { verifyForma(e.target.result); };
+      reader.readAsText(file);
+    }
+
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,474 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openforma.build/schemas/FORMA-ONBOARD-003/1.0.0",
+  "title": "FORMA-ONBOARD-003 — Worker Professional Profile",
+  "description": "OpenFORMA schema for a worker's portable professional profile and CV. Replaces the paper CV, agency registration form, and ad-hoc profile page. Machine-readable, CPCX-native, verifiable. The credi.build profile is the reference implementation of this schema.",
+
+  "design_principles": {
+    "identity_first": "Name is the universal primary key. Every entity in the system — person, machine, device, site, or plant — is identified by name first. Everything else is an attribute of that name. profile_id is the machine-readable unique identifier. display_name is the human-readable label. No entity exists in this schema without both.",
+    "entity_model": "entity → id (machine) + name (human) + type + attributes. This pattern applies universally across OCX, CPCX, and OpenFORMA regardless of entity type."
+  },
+  "version": "1.0.0",
+  "forma_id": "FORMA-ONBOARD-003",
+  "forma_class": "ONBOARD",
+  "status": "published",
+  "created": "2026-03-23",
+  "author": "Ark & Aico Labs",
+  "licence": "CC-BY-4.0",
+
+  "type": "object",
+  "required": [
+    "forma_version",
+    "forma_id",
+    "schema_version",
+    "profile_id",
+    "display_name",
+    "primary_role",
+    "location",
+    "availability",
+    "contact"
+  ],
+
+  "properties": {
+
+    "forma_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "OpenFORMA protocol version"
+    },
+
+    "forma_id": {
+      "type": "string",
+      "const": "FORMA-ONBOARD-003",
+      "description": "OpenFORMA document type identifier"
+    },
+
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Schema version — semver"
+    },
+
+    "profile_id": {
+      "type": "string",
+      "description": "Unique portable worker identifier. Format: platform:handle e.g. credi:swilliams",
+      "examples": ["credi:swilliams"]
+    },
+
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 — when the profile was first created"
+    },
+
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 — last profile update"
+    },
+
+    "display_name": {
+      "type": "string",
+      "description": "Name as the worker chooses to display it. Full name or initial + surname.",
+      "examples": ["S Williams", "Steve Williams"]
+    },
+
+    "personal_statement": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Short professional statement in the worker's own voice. Plain text. No markdown."
+    },
+
+    "primary_role": {
+      "type": "object",
+      "required": ["cpcx_id", "display_label"],
+      "description": "Primary trade or role. CPCX-ROLE reference.",
+      "properties": {
+        "cpcx_id": {
+          "type": "string",
+          "pattern": "^CPCX-ROLE-[0-9]{3}$",
+          "description": "CPCX role identifier",
+          "examples": ["CPCX-ROLE-010"]
+        },
+        "display_label": {
+          "type": "string",
+          "description": "Human-readable role label for display",
+          "examples": ["Site Engineer", "Telehandler Operator", "Groundworker"]
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["trainee", "skilled", "gold", "senior"],
+          "description": "Experience tier — maps to CSCS card colour language. trainee=red, skilled=blue, gold=gold, senior=black"
+        }
+      }
+    },
+
+    "secondary_roles": {
+      "type": "array",
+      "description": "Additional trades or roles the worker holds",
+      "items": {
+        "type": "object",
+        "required": ["cpcx_id", "display_label"],
+        "properties": {
+          "cpcx_id": { "type": "string", "pattern": "^CPCX-ROLE-[0-9]{3}$" },
+          "display_label": { "type": "string" },
+          "tier": { "type": "string", "enum": ["trainee", "skilled", "gold", "senior"] }
+        }
+      }
+    },
+
+    "location": {
+      "type": "object",
+      "required": ["area"],
+      "properties": {
+        "area": {
+          "type": "string",
+          "description": "City, town or region",
+          "examples": ["London", "Manchester", "Birmingham"]
+        },
+        "radius_miles": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 200,
+          "description": "Maximum travel radius from base location in miles"
+        },
+        "coordinates": {
+          "type": "object",
+          "description": "Optional — approximate coordinates for map display. Do not store precise home address.",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        }
+      }
+    },
+
+    "availability": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["available", "unavailable", "available_from"],
+          "description": "Current availability status"
+        },
+        "available_from": {
+          "type": "string",
+          "format": "date",
+          "description": "Required if status is available_from"
+        },
+        "notice_days": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Notice required in days before start. 0 = same day."
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When availability was last updated — freshness signal"
+        }
+      }
+    },
+
+    "years_experience": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total years in construction or relevant industry"
+    },
+
+    "certifications": {
+      "type": "array",
+      "description": "All tickets, cards, and certifications held",
+      "items": {
+        "type": "object",
+        "required": ["cpcx_id", "display_name", "status"],
+        "properties": {
+          "cpcx_id": {
+            "type": "string",
+            "pattern": "^CPCX-CERT-[0-9]{3}$",
+            "description": "CPCX certification identifier",
+            "examples": ["CPCX-CERT-001"]
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Human-readable cert name",
+            "examples": ["CPCS A17C — Telehandler", "CSCS Blue Card", "ProQual Level 3"]
+          },
+          "description": {
+            "type": "string",
+            "description": "Additional context — category, scope, specialisation"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["valid", "expiring", "expired", "in_progress", "suspended"],
+            "description": "Current cert status"
+          },
+          "awarded_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "expiry_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "issuing_body": {
+            "type": "string",
+            "examples": ["CPCS", "CSCS", "CITB", "ProQual", "NOCN"]
+          },
+          "card_number": {
+            "type": "string",
+            "description": "Card or licence number — stored encrypted, never displayed in full"
+          },
+          "verified": {
+            "type": "boolean",
+            "description": "Whether this cert has been verified against an authoritative source (CSCS API, CPCS API)"
+          },
+          "verified_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+
+    "employment_history": {
+      "type": "array",
+      "description": "Work history — most recent first",
+      "items": {
+        "type": "object",
+        "required": ["role_label", "from_date"],
+        "properties": {
+          "role_label": {
+            "type": "string",
+            "description": "Job title as displayed",
+            "examples": ["Telehandler Operator", "Setting Out Engineer"]
+          },
+          "employer": {
+            "type": "string",
+            "description": "Company or contractor name. Worker may set to 'Various contractors'."
+          },
+          "location": { "type": "string" },
+          "from_date": {
+            "type": "string",
+            "description": "Start date — YYYY-MM or YYYY"
+          },
+          "to_date": {
+            "type": ["string", "null"],
+            "description": "End date — YYYY-MM or YYYY. Null = current."
+          },
+          "current": {
+            "type": "boolean",
+            "description": "True if this is the current role"
+          },
+          "cpcx_role": {
+            "type": "string",
+            "pattern": "^CPCX-ROLE-[0-9]{3}$",
+            "description": "CPCX role ID for this position — optional"
+          },
+          "notable": {
+            "type": "string",
+            "description": "Short notable context — e.g. 'HS2 infrastructure works', 'high-rise residential'"
+          }
+        }
+      }
+    },
+
+    "competencies": {
+      "type": "array",
+      "description": "Technical skills and competencies as bullet points. Worker-authored. Free text.",
+      "items": { "type": "string" },
+      "maxItems": 10
+    },
+
+    "other_certifications": {
+      "type": "array",
+      "description": "Non-CPCX certifications, qualifications, and professional memberships. For credentials outside UK construction competency — technology certs, professional body memberships, academic awards. CPCX domain stays pure.",
+      "items": {
+        "type": "object",
+        "required": ["display_name", "status", "issuing_body"],
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "description": "Full name of the certification or membership",
+            "examples": ["AWS Certified Cloud Solutions Architect", "ICE Membership"]
+          },
+          "description": {
+            "type": "string",
+            "description": "Additional context"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["valid", "expiring", "expired", "in_progress"],
+            "description": "Current status"
+          },
+          "issuing_body": {
+            "type": "string",
+            "description": "Organisation that issued the credential",
+            "examples": ["Amazon Web Services", "ICE", "BCS", "RICS"]
+          },
+          "domain": {
+            "type": "string",
+            "description": "Category of credential",
+            "examples": ["technology", "professional_membership", "academic", "health_safety", "financial"]
+          },
+          "awarded_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "expiry_date": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      }
+    },
+
+    "employment_type": {
+      "type": "string",
+      "description": "CPCX employment/CIS reference",
+      "examples": ["CPCX-EMPL-001", "CPCX-CIS-001"]
+    },
+
+    "contact": {
+      "type": "object",
+      "required": ["phone"],
+      "description": "Contact methods. Only include fields the worker has consented to publish.",
+      "properties": {
+        "phone": {
+          "type": "string",
+          "description": "Primary phone — E.164 format",
+          "examples": ["+447886063048"]
+        },
+        "whatsapp": {
+          "type": "string",
+          "description": "WhatsApp number if different from phone — E.164 format"
+        },
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "linkedin_url": { "type": "string", "format": "uri" },
+        "instagram_url": { "type": "string", "format": "uri" },
+        "tiktok_url": { "type": "string", "format": "uri" }
+      }
+    },
+
+    "media": {
+      "type": "object",
+      "description": "Profile media assets",
+      "properties": {
+        "photo_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Profile/hero photo URL. HTTPS only."
+        },
+        "photo_alt": {
+          "type": "string",
+          "description": "Accessibility alt text for the photo"
+        }
+      }
+    },
+
+    "profile_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "The canonical public URL for this profile",
+      "examples": ["https://credi.build/swilliams"]
+    },
+
+    "platform": {
+      "type": "string",
+      "description": "Platform that issued this profile record",
+      "examples": ["credi.build"]
+    },
+
+    "ocx_compatible": {
+      "type": "boolean",
+      "const": true,
+      "description": "Confirms this profile is OCX-compatible and can be queried via QUERY worker operations"
+    }
+  },
+
+  "examples": [
+    {
+      "forma_version": "1.0",
+      "forma_id": "FORMA-ONBOARD-003",
+      "schema_version": "1.0.0",
+      "profile_id": "credi:swilliams",
+      "display_name": "S Williams",
+      "personal_statement": "Ten years on construction sites including 2.5 years on HS2 infrastructure works. ProQual Level 3 in Engineering Surveying. Confident with Leica TS16, GNSS/RTK, and resection workflows to millimetre tolerances.",
+      "primary_role": {
+        "cpcx_id": "CPCX-ROLE-047",
+        "display_label": "Site Engineer — Setting Out",
+        "tier": "skilled"
+      },
+      "secondary_roles": [
+        {
+          "cpcx_id": "CPCX-ROLE-010",
+          "display_label": "Telehandler Operator",
+          "tier": "skilled"
+        }
+      ],
+      "location": {
+        "area": "London",
+        "radius_miles": 30
+      },
+      "availability": {
+        "status": "available",
+        "notice_days": 0,
+        "updated_at": "2026-03-23T09:00:00Z"
+      },
+      "years_experience": 10,
+      "certifications": [
+        {
+          "cpcx_id": "CPCX-CERT-021",
+          "display_name": "ProQual Level 3 Diploma",
+          "description": "Engineering Surveying (Setting Out) · Feb 2026",
+          "status": "valid",
+          "awarded_date": "2026-02-01",
+          "issuing_body": "ProQual"
+        },
+        {
+          "cpcx_id": "CPCX-CERT-002",
+          "display_name": "CSCS — Gold Card",
+          "description": "Supervisory Level · Application in Progress",
+          "status": "in_progress",
+          "issuing_body": "CSCS"
+        },
+        {
+          "cpcx_id": "CPCX-CERT-001",
+          "display_name": "CPCS A17C — Blue Card",
+          "description": "Telescopic Handler · All Sizes",
+          "status": "valid",
+          "issuing_body": "CPCS"
+        }
+      ],
+      "employment_history": [
+        {
+          "role_label": "Setting Out Engineer — Training",
+          "from_date": "2024",
+          "current": true
+        },
+        {
+          "role_label": "Construction Plant Operator (Telehandler)",
+          "employer": "HS2 Infrastructure",
+          "from_date": "2021",
+          "to_date": "2024",
+          "notable": "2.5 years on HS2 — high-spec safety culture"
+        }
+      ],
+      "competencies": [
+        "Leica TS16 total station — setup, backsight, resection to millimetre tolerances",
+        "GNSS / RTK — rover and base, DOP, multipathing and cycle slips",
+        "AutoCAD — strong working knowledge",
+        "TBMs, control networks, site grids and datum principles"
+      ],
+      "contact": {
+        "phone": "+447886063048"
+      },
+      "profile_url": "https://credi.build/swilliams",
+      "platform": "credi.build",
+      "ocx_compatible": true
+    }
+  ]
+}
